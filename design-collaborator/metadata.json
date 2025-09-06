@@ -1,0 +1,5 @@
+{
+  "name": "Design Collaborator",
+  "description": "An application that allows users to upload an image and collaborate by leaving comments on specific regions of the image. Selections are highlighted, and comments appear in a sidebar for a clean, non-obtrusive review process.",
+  "requestFramePermissions": []
+}
