@@ -19,11 +19,14 @@ export function initializeDb() {
       id TEXT PRIMARY KEY,
       ownerId TEXT NOT NULL,
       sessionName TEXT,
+      sessionDescription TEXT,
       imageUrl TEXT NOT NULL,
+      sessionThumbnailUrl TEXT,
       annotations TEXT NOT NULL, -- JSON blob
       password TEXT,
       collaboratorIds TEXT NOT NULL, -- JSON blob
       createdAt INTEGER NOT NULL,
+      lastActivity INTEGER NOT NULL,
       history TEXT, -- JSON blob of events
       FOREIGN KEY (ownerId) REFERENCES users(email)
     );
@@ -36,6 +39,17 @@ export function initializeDb() {
     }
     if (!columns.find(c => c.name === 'sessionName')) {
       db.prepare(`ALTER TABLE sessions ADD COLUMN sessionName TEXT`).run();
+    }
+    if (!columns.find(c => c.name === 'sessionDescription')) {
+      db.prepare(`ALTER TABLE sessions ADD COLUMN sessionDescription TEXT`).run();
+    }
+    if (!columns.find(c => c.name === 'sessionThumbnailUrl')) {
+      db.prepare(`ALTER TABLE sessions ADD COLUMN sessionThumbnailUrl TEXT`).run();
+    }
+    if (!columns.find(c => c.name === 'lastActivity')) {
+      db.prepare(`ALTER TABLE sessions ADD COLUMN lastActivity INTEGER`).run();
+      // Backfill lastActivity with createdAt for existing rows
+      db.prepare(`UPDATE sessions SET lastActivity = COALESCE(lastActivity, createdAt)`).run();
     }
   } catch (e) {
     // ignore
@@ -67,8 +81,11 @@ const rowToSession = (row: any): Session | null => {
     return {
         ...row,
         sessionName: row.sessionName,
+        sessionDescription: row.sessionDescription,
+        sessionThumbnailUrl: row.sessionThumbnailUrl,
         annotations: JSON.parse(row.annotations),
         collaboratorIds: JSON.parse(row.collaboratorIds),
+        lastActivity: row.lastActivity ?? row.createdAt,
         history: row.history ? JSON.parse(row.history) : [],
     };
 };
@@ -101,13 +118,27 @@ export const saveSession = (session: Session) => {
     if (existing) {
         db.prepare(`
             UPDATE sessions
-            SET ownerId = ?, sessionName = ?, imageUrl = ?, annotations = ?, password = ?, collaboratorIds = ?, createdAt = ?, history = ?
+            SET ownerId = ?, sessionName = ?, sessionDescription = ?, imageUrl = ?, sessionThumbnailUrl = ?, annotations = ?, password = ?, collaboratorIds = ?, createdAt = ?, lastActivity = ?, history = ?
             WHERE id = ?
-        `).run(session.ownerId, session.sessionName, session.imageUrl, annotationsJson, session.password, collaboratorIdsJson, session.createdAt, historyJson, session.id);
+        `).run(session.ownerId, session.sessionName, session.sessionDescription, session.imageUrl, session.sessionThumbnailUrl, annotationsJson, session.password, collaboratorIdsJson, session.createdAt, (session as any).lastActivity ?? session.createdAt, historyJson, session.id);
     } else {
         db.prepare(`
-            INSERT INTO sessions (id, ownerId, sessionName, imageUrl, annotations, password, collaboratorIds, createdAt, history)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(session.id, session.ownerId, session.sessionName, session.imageUrl, annotationsJson, session.password, collaboratorIdsJson, session.createdAt, historyJson);
+            INSERT INTO sessions (id, ownerId, sessionName, sessionDescription, imageUrl, sessionThumbnailUrl, annotations, password, collaboratorIds, createdAt, lastActivity, history)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(session.id, session.ownerId, session.sessionName, session.sessionDescription, session.imageUrl, session.sessionThumbnailUrl, annotationsJson, session.password, collaboratorIdsJson, session.createdAt, (session as any).lastActivity ?? session.createdAt, historyJson);
     }
 };
+
+export function getInactiveSessions(thresholdMs: number): { id: string; imageUrl: string; sessionThumbnailUrl?: string }[] {
+  const rows = db.prepare(`SELECT id, imageUrl, sessionThumbnailUrl FROM sessions WHERE lastActivity < ?`).all(thresholdMs) as { id: string; imageUrl: string; sessionThumbnailUrl?: string }[];
+  return rows;
+}
+
+export function deleteSessionsByIds(ids: string[]): number {
+  if (!ids.length) return 0;
+  const placeholders = ids.map(() => '?').join(',');
+  const stmt = db.prepare(`DELETE FROM sessions WHERE id IN (${placeholders})`);
+  const info = stmt.run(...ids);
+  try { db.exec('VACUUM'); } catch {}
+  return info.changes || 0;
+}

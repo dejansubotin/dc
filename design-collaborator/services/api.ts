@@ -55,11 +55,11 @@ export const createUser = (email: string, displayName: string): Promise<User> =>
 };
 
 // Fix: Explicitly type the response handling to resolve promise type mismatch.
-export const createSession = (ownerEmail: string, imageDataUrl: string, sessionName?: string): Promise<Session> => {
+export const createSession = (ownerEmail: string, imageDataUrl: string, sessionName?: string, sessionDescription?: string, thumbnailDataUrl?: string): Promise<Session> => {
     return fetch(`${API_BASE_URL}/sessions`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ownerEmail, imageDataUrl, sessionName }),
+      body: JSON.stringify({ ownerEmail, imageDataUrl, sessionName, sessionDescription, thumbnailDataUrl }),
     }).then(response => handleResponse<Session>(response));
 };
 

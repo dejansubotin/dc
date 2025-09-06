@@ -28,7 +28,7 @@ const SessionHistory: React.FC<SessionHistoryProps> = ({ sessions, onSelectSessi
             className="w-full flex items-center p-3 bg-gray-700/50 hover:bg-gray-700 rounded-lg transition-colors text-left"
           >
             <img 
-              src={session.imageUrl} 
+              src={session.sessionThumbnailUrl || session.imageUrl} 
               alt="Session thumbnail"
               className="w-16 h-10 object-cover rounded-md mr-4 bg-gray-900" 
             />

@@ -7,7 +7,8 @@ import path from 'path';
 
 // Fix: Import fileURLToPath to resolve __dirname in ES Modules.
 
-import { initializeDb, getSessionById, saveSession, findOrCreateUser, findUserByEmail, getUserSessions } from './db';
+import { initializeDb, getSessionById, saveSession, findOrCreateUser, findUserByEmail, getUserSessions, getInactiveSessions, deleteSessionsByIds } from './db';
+import fs from 'fs';
 import { sendNewCommentEmail } from './email';
 import type { Session, Annotation, Comment, User, HistoryEvent, Collaborator } from '../types';
 
@@ -26,6 +27,7 @@ const io = new Server(server, {
 });
 
 const PORT = process.env.PORT || 3000;
+const RETENTION_DAYS = parseInt(process.env.RETENTION_DAYS || '20', 10);
 
 app.use(cors());
 // Fix: No overload matches this call. Removed path argument to match a different overload.
@@ -87,23 +89,63 @@ apiRouter.get('/users/:email/sessions', (req, res) => {
 // Session routes
 apiRouter.post('/sessions', (req, res) => {
     try {
-        const { ownerEmail, imageDataUrl, sessionName } = req.body;
+        const { ownerEmail, imageDataUrl, sessionName, sessionDescription } = req.body;
         if (!ownerEmail || !imageDataUrl) {
             return res.status(400).json({ error: 'ownerEmail and imageDataUrl are required' });
         }
         // Ensure owner exists (defensive if FK is enforced)
         findOrCreateUser(ownerEmail, ownerEmail.split('@')[0] || ownerEmail);
 
+        const now = Date.now();
         const newSession: Session = {
             id: `sid_${Date.now()}`,
             ownerId: ownerEmail,
             sessionName,
-            imageUrl: imageDataUrl,
+            sessionDescription,
+            imageUrl: '',
+            sessionThumbnailUrl: '',
             annotations: [],
             collaboratorIds: [ownerEmail],
-            createdAt: Date.now(),
+            createdAt: now,
+            lastActivity: now as any,
             history: [],
         };
+        // Persist image to disk under /data/uploads
+        try {
+          const m = /^data:(.*?);base64,(.*)$/.exec(imageDataUrl || '');
+          if (!m) throw new Error('Invalid image data');
+          const mime = m[1] || 'application/octet-stream';
+          const b64 = m[2];
+          const ext = mime.includes('png') ? 'png' : mime.includes('jpeg') || mime.includes('jpg') ? 'jpg' : mime.includes('webp') ? 'webp' : 'bin';
+          const uploadsDir = '/data/uploads';
+          try { fs.mkdirSync(uploadsDir, { recursive: true }); } catch {}
+          const filename = `${newSession.id}.${ext}`;
+          const filePath = `${uploadsDir}/${filename}`;
+          fs.writeFileSync(filePath, Buffer.from(b64, 'base64'));
+          newSession.imageUrl = `/uploads/${filename}`;
+        } catch (e) {
+          console.error('Failed to save image to disk:', e);
+          return res.status(400).json({ error: 'Invalid image data' });
+        }
+        // Optional thumbnail
+        try {
+          const thumbDataUrl = (req.body.thumbnailDataUrl || '') as string;
+          if (thumbDataUrl.startsWith('data:')) {
+            const m2 = /^data:(.*?);base64,(.*)$/.exec(thumbDataUrl);
+            if (m2) {
+              const mime2 = m2[1] || 'image/jpeg';
+              const b642 = m2[2];
+              const ext2 = mime2.includes('png') ? 'png' : 'jpg';
+              const thumbsDir = '/data/uploads/thumbs';
+              try { fs.mkdirSync(thumbsDir, { recursive: true }); } catch {}
+              const thumbFile = `${thumbsDir}/${newSession.id}.${ext2}`;
+              fs.writeFileSync(thumbFile, Buffer.from(b642, 'base64'));
+              newSession.sessionThumbnailUrl = `/uploads/thumbs/${newSession.id}.${ext2}`;
+            }
+          }
+        } catch (e) {
+          console.warn('Thumbnail generation failed or skipped:', e);
+        }
         appendHistory(newSession, { id: Date.now(), type: 'session_created', actor: ownerEmail, message: `Session created${sessionName ? `: ${sessionName}` : ''}`, timestamp: Date.now() });
         saveSession(newSession);
         res.status(201).json(enrichSession(newSession));
@@ -136,6 +178,7 @@ apiRouter.post('/sessions/:id/collaborators', (req, res) => {
         saveSession(session);
     }
     appendHistory(session, { id: Date.now(), type: 'user_joined', actor: email, message: `${displayName} joined`, timestamp: Date.now() });
+    (session as any).lastActivity = Date.now();
     saveSession(session);
     broadcastSessionUpdate(session.id, session);
     res.json(enrichSession(session));
@@ -146,6 +189,7 @@ apiRouter.put('/sessions/:id/password', (req, res) => {
     if (!session) return res.status(404).json({ error: 'Session not found' });
     session.password = req.body.password || undefined;
     appendHistory(session, { id: Date.now(), type: session.password ? 'password_set' : 'password_removed', actor: req.body.actor || undefined, message: session.password ? 'Password set' : 'Password removed', timestamp: Date.now() });
+    (session as any).lastActivity = Date.now();
     saveSession(session);
     broadcastSessionUpdate(session.id, session);
     res.json(enrichSession(session));
@@ -158,6 +202,7 @@ apiRouter.post('/sessions/:id/annotations', (req, res) => {
     const { annotation } = req.body;
     session.annotations.push(annotation);
     appendHistory(session, { id: Date.now(), type: 'annotation_added', actor: req.body.actor || undefined, message: `Annotation ${annotation.id} added`, timestamp: Date.now() });
+    (session as any).lastActivity = Date.now();
     saveSession(session);
     broadcastSessionUpdate(session.id, session);
     res.status(201).json(enrichSession(session));
@@ -168,6 +213,7 @@ apiRouter.delete('/sessions/:id/annotations/:annoId', (req, res) => {
     if (!session) return res.status(404).json({ error: 'Session not found' });
     session.annotations = session.annotations.filter(a => a.id !== parseInt(req.params.annoId));
     appendHistory(session, { id: Date.now(), type: 'annotation_deleted', actor: req.body.actor || undefined, message: `Annotation ${req.params.annoId} deleted`, timestamp: Date.now() });
+    (session as any).lastActivity = Date.now();
     saveSession(session);
     broadcastSessionUpdate(session.id, session);
     res.json(enrichSession(session));
@@ -181,6 +227,7 @@ apiRouter.put('/sessions/:id/annotations/:annoId/solve', (req, res) => {
         a.id === parseInt(req.params.annoId) ? { ...a, isSolved } : a
     );
     appendHistory(session, { id: Date.now(), type: isSolved ? 'annotation_solved' : 'annotation_reopened', actor: req.body.actor || undefined, message: `Annotation ${req.params.annoId} ${isSolved ? 'solved' : 'reopened'}`, timestamp: Date.now() });
+    (session as any).lastActivity = Date.now();
     saveSession(session);
     broadcastSessionUpdate(session.id, session);
     res.json(enrichSession(session));
@@ -216,6 +263,7 @@ apiRouter.post('/sessions/:id/annotations/:annoId/comments', async (req, res) =>
     if (!annotationFound) return res.status(404).json({ error: 'Annotation not found' });
 
     appendHistory(session, { id: Date.now(), type: 'comment_added', actor: user.email, message: parentId ? `${user.displayName} replied to comment ${parentId}` : `${user.displayName} commented on ${req.params.annoId}`, timestamp: Date.now() });
+    (session as any).lastActivity = Date.now();
     saveSession(session);
     broadcastSessionUpdate(session.id, session);
 
@@ -254,6 +302,7 @@ apiRouter.put('/sessions/:id/annotations/:annoId/comments/:commentId/like', (req
     if (!found) return res.status(404).json({ error: 'Comment not found' });
 
     appendHistory(session, { id: Date.now(), type: like ? 'comment_liked' : 'comment_unliked', actor: userEmail, message: `${userEmail} ${like ? 'liked' : 'unliked'} comment ${commentId}`, timestamp: Date.now() });
+    (session as any).lastActivity = Date.now();
     saveSession(session);
     broadcastSessionUpdate(session.id, session);
     res.json(enrichSession(session));
@@ -261,6 +310,9 @@ apiRouter.put('/sessions/:id/annotations/:annoId/comments/:commentId/like', (req
 
 // Use the API router
 app.use('/api', apiRouter);
+
+// Serve uploaded images from /data/uploads
+app.use('/uploads', express.static('/data/uploads'));
 
 // Health
 app.get('/api/health', (_req, res) => {
@@ -277,4 +329,28 @@ app.get('*', (req, res) => {
 
 server.listen(PORT, () => {
   console.log(`Server running on http://localhost:${PORT}`);
+  const intervalMs = 24 * 60 * 60 * 1000; // daily
+  setInterval(() => {
+    try {
+      const threshold = Date.now() - (RETENTION_DAYS * 24 * 60 * 60 * 1000);
+      const stale = getInactiveSessions(threshold);
+      if (stale.length) {
+        for (const s of stale) {
+          if (s.imageUrl && s.imageUrl.startsWith('/uploads/')) {
+            const diskPath = '/data' + s.imageUrl;
+            try { fs.unlinkSync(diskPath); } catch {}
+          }
+          const thumb = (s as any).sessionThumbnailUrl as string | undefined;
+          if (thumb && thumb.startsWith('/uploads/')) {
+            const tpath = '/data' + thumb;
+            try { fs.unlinkSync(tpath); } catch {}
+          }
+        }
+        const removed = deleteSessionsByIds(stale.map(s => s.id));
+        if (removed > 0) console.log(`Cleaned up ${removed} inactive session(s).`);
+      }
+    } catch (e) {
+      console.warn('Cleanup task failed:', e);
+    }
+  }, intervalMs);
 });

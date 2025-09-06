@@ -27,7 +27,7 @@ const MySessionsModal: React.FC<MySessionsModalProps> = ({ isOpen, onClose, sess
             <ul className="space-y-3">
               {sessions.map(s => (
                 <li key={s.id} className="bg-gray-700/40 hover:bg-gray-700 rounded p-3 flex items-center gap-3">
-                  <img src={s.imageUrl} alt="thumb" className="w-20 h-12 object-cover rounded bg-gray-900" />
+                  <img src={s.sessionThumbnailUrl || s.imageUrl} alt="thumb" className="w-20 h-12 object-cover rounded bg-gray-900" />
                   <div className="flex-grow">
                     <p className="text-gray-200 font-semibold">{s.sessionName || `Session ${s.id.slice(0,8)}...`}</p>
                     <p className="text-gray-400 text-sm">{new Date(s.createdAt).toLocaleString()}</p>
@@ -47,4 +47,3 @@ const MySessionsModal: React.FC<MySessionsModalProps> = ({ isOpen, onClose, sess
 };
 
 export default MySessionsModal;
-

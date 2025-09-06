@@ -35,7 +35,9 @@ export interface Session {
   id: string;
   ownerId: string; // user's email
   sessionName?: string;
+  sessionDescription?: string;
   imageUrl: string;
+  sessionThumbnailUrl?: string;
   annotations: Annotation[];
   password?: string;
   collaboratorIds: string[]; // array of user emails

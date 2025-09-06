@@ -145,7 +145,9 @@ const CommentSidebar: React.FC<CommentSidebarProps> = ({
       <div key={comment.id} className={`${containerCls} p-3 rounded-lg group relative`}> 
         {canModify && !isSolved && (
           <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-            <button onClick={() => setEditingComment({ id: comment.id, text: comment.text })} className="p-1.5 rounded-full bg-gray-600 text-gray-300 hover:bg-yellow-500 hover:text-white" aria-label="Edit comment"><EditIcon /></button>
+            {!hasChildren && (
+              <button onClick={() => setEditingComment({ id: comment.id, text: comment.text })} className="p-1.5 rounded-full bg-gray-600 text-gray-300 hover:bg-yellow-500 hover:text-white" aria-label="Edit comment"><EditIcon /></button>
+            )}
             <button onClick={() => activeAnnotationId && onDeleteComment(activeAnnotationId, comment.id)} className="p-1.5 rounded-full bg-gray-600 text-gray-300 hover:bg-red-500 hover:text-white" aria-label="Delete comment"><DeleteIcon /></button>
           </div>
         )}
@@ -153,7 +155,7 @@ const CommentSidebar: React.FC<CommentSidebarProps> = ({
           <p className="font-bold text-sm" style={{ color: getUserColor(comment.userId) }}>{comment.author}</p>
           <p className="text-xs text-gray-500">{new Date(comment.timestamp).toLocaleString()}</p>
         </div>
-        {editingComment?.id === comment.id && !isSolved ? (
+        {editingComment?.id === comment.id && !isSolved && !hasChildren ? (
           <>
             <textarea value={editingComment.text} onChange={(e) => setEditingComment({ ...editingComment, text: e.target.value })} className="w-full p-2 bg-gray-900 border border-gray-600 rounded-md focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none transition" rows={3} autoFocus />
             <div className="flex items-center justify-end gap-2 mt-2">

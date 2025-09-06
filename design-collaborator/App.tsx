@@ -8,6 +8,7 @@ import LoginModal from './components/LoginModal';
 import ShareModal from './components/ShareModal';
 import MySessionsModal from './components/MySessionsModal';
 import HistoryModal from './components/HistoryModal';
+import CreateSessionModal from './components/CreateSessionModal';
 import SessionHistory from './components/SessionHistory';
 import type { Annotation, SelectionRectangle, User, Session, Comment } from './types';
 import * as api from './services/api';
@@ -42,6 +43,9 @@ const App: React.FC = () => {
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
   const [mySessionsOpen, setMySessionsOpen] = useState(false);
+  const [createSessionOpen, setCreateSessionOpen] = useState(false);
+  const [pendingImageDataUrl, setPendingImageDataUrl] = useState<string | null>(null);
+  const [pendingThumbDataUrl, setPendingThumbDataUrl] = useState<string | null>(null);
 
   // --- Initialization and Socket Effect ---
   useEffect(() => {
@@ -140,21 +144,59 @@ const App: React.FC = () => {
 
   const handleImageUpload = useCallback(async (file: File) => {
     if (!currentUser) return;
-    const name = window.prompt('Name this session (e.g., Project / Screen)') || '';
     const reader = new FileReader();
     reader.onload = async () => {
       const imageDataUrl = reader.result as string;
+      // Generate thumbnail in browser
       try {
-        const newSession = await api.createSession(currentUser.email, imageDataUrl, name.trim() || undefined);
-        setCurrentSession(newSession);
-        window.history.pushState({}, '', `?sessionId=${newSession.id}`);
-      } catch (error) {
-        console.error("Failed to create session:", error);
-        alert("Could not create session. Please try again.");
+        const img = new Image();
+        img.onload = () => {
+          const maxW = 400; const maxH = 300;
+          let { width, height } = img;
+          const ratio = Math.min(maxW / width, maxH / height, 1);
+          width = Math.round(width * ratio);
+          height = Math.round(height * ratio);
+          const canvas = document.createElement('canvas');
+          canvas.width = width; canvas.height = height;
+          const ctx = canvas.getContext('2d');
+          if (ctx) {
+            ctx.drawImage(img, 0, 0, width, height);
+            const thumb = canvas.toDataURL('image/jpeg', 0.75);
+            setPendingThumbDataUrl(thumb);
+          }
+          setPendingImageDataUrl(imageDataUrl);
+          setCreateSessionOpen(true);
+        };
+        img.onerror = () => {
+          setPendingThumbDataUrl(null);
+          setPendingImageDataUrl(imageDataUrl);
+          setCreateSessionOpen(true);
+        };
+        img.src = imageDataUrl;
+      } catch {
+        setPendingThumbDataUrl(null);
+        setPendingImageDataUrl(imageDataUrl);
+        setCreateSessionOpen(true);
       }
     };
     reader.readAsDataURL(file);
   }, [currentUser]);
+
+  const handleConfirmCreateSession = async (sessionName: string, sessionDescription?: string) => {
+    if (!currentUser || !pendingImageDataUrl) return;
+    try {
+      const newSession = await api.createSession(currentUser.email, pendingImageDataUrl, sessionName || undefined, sessionDescription, pendingThumbDataUrl || undefined);
+      setCurrentSession(newSession);
+      window.history.pushState({}, '', `?sessionId=${newSession.id}`);
+    } catch (error) {
+      console.error("Failed to create session:", error);
+      alert("Could not create session. Please try again.");
+    } finally {
+      setCreateSessionOpen(false);
+      setPendingImageDataUrl(null);
+      setPendingThumbDataUrl(null);
+    }
+  };
 
   const handleSetPassword = async (password: string) => {
     if (currentSession) {
@@ -287,7 +329,23 @@ const App: React.FC = () => {
             )}
           </div>
           <div className="flex items-center gap-4">
-            {currentUser && <span className="text-gray-300">Welcome, <span className="font-bold text-cyan-400">{currentUser.displayName}</span>!</span>}
+            {currentUser && (
+              <div className="text-right">
+                <div className="text-gray-300">Welcome, <span className="font-bold text-cyan-400">{currentUser.displayName}</span>!</div>
+                {currentSession && (
+                  <div className="text-xs text-gray-400 mt-0.5 relative group/name">
+                    <span>
+                      Session name: <span className="text-gray-200">{currentSession.sessionName || 'Untitled'}</span>
+                    </span>
+                    {(currentSession.sessionDescription || '').trim().length > 0 && (
+                      <div className="absolute right-0 mt-1 bg-gray-900 text-gray-200 text-xs whitespace-pre-wrap border border-gray-700 rounded px-2 py-1 shadow-lg z-50 hidden group-hover/name:block max-w-sm">
+                        {currentSession.sessionDescription}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            )}
             {currentSession && (
               <>
                 {currentUser?.email === currentSession.ownerId && (
@@ -377,6 +435,13 @@ const App: React.FC = () => {
           isOpen={mySessionsOpen}
           onClose={() => setMySessionsOpen(false)}
           sessions={userSessions}
+        />
+      )}
+      {currentUser && (
+        <CreateSessionModal
+          isOpen={createSessionOpen}
+          onClose={() => { setCreateSessionOpen(false); setPendingImageDataUrl(null); }}
+          onCreate={handleConfirmCreateSession}
         />
       )}
       <ConfirmationModal

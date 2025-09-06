@@ -66,27 +66,32 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageUpload }) => {
   `;
 
   return (
-    <div 
-      className={dropzoneClasses}
-      onDragEnter={handleDragEnter}
-      onDragLeave={handleDragLeave}
-      onDragOver={handleDragOver}
-      onDrop={handleDrop}
-      onClick={handleClick}
-    >
-      <input
-        ref={fileInputRef}
-        type="file"
-        accept="image/*"
-        className="hidden"
-        onChange={handleFileChange}
-      />
-      <UploadIcon />
-      <p className="mt-4 text-xl font-semibold text-gray-400">
-        Drag & Drop your image here
-      </p>
-      <p className="mt-2 text-gray-500">or click to browse files</p>
-    </div>
+    <>
+      <div 
+        className={dropzoneClasses}
+        onDragEnter={handleDragEnter}
+        onDragLeave={handleDragLeave}
+        onDragOver={handleDragOver}
+        onDrop={handleDrop}
+        onClick={handleClick}
+      >
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={handleFileChange}
+        />
+        <UploadIcon />
+        <p className="mt-4 text-xl font-semibold text-gray-400">
+          Drag & Drop your image here
+        </p>
+        <p className="mt-2 text-gray-500">or click to browse files</p>
+      </div>
+      <div className="mt-3 text-xs text-amber-300 bg-amber-900/30 border border-amber-700 rounded p-2 text-center">
+        Sessions inactive for 20 days are automatically deleted.
+      </div>
+    </>
   );
 };
 
