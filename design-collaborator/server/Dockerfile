@@ -26,10 +26,12 @@ WORKDIR /app/server
 COPY --from=builder /app/server/dist ./dist
 COPY --from=builder /app/server/node_modules ./node_modules
 COPY --from=builder /app/server/package.json ./package.json
+COPY server/start.sh ./start.sh
+RUN chmod +x ./start.sh
 
 # The DB file will be created at runtime in WORKDIR (/app)
 ENV NODE_ENV=production
 ENV PORT=3000
 EXPOSE 3000
 
-CMD ["node", "dist/index.js"]
+CMD ["bash", "./start.sh"]
