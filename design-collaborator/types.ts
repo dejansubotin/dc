@@ -42,6 +42,7 @@ export interface Session {
   password?: string;
   collaboratorIds: string[]; // array of user emails
   createdAt: number;
+  lastActivity: number;
   history?: HistoryEvent[];
   collaboratorProfiles?: Collaborator[];
 }
