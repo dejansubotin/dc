@@ -2,7 +2,7 @@ import Database from 'better-sqlite3';
 import path from 'path';
 import type { Session, Annotation, Comment, User } from '../types';
 
-const DB_PATH = process.env.DB_PATH || '/data/collaborator.db';
+export const DB_PATH = process.env.DB_PATH || '/data/collaborator.db';
 const db = new Database(DB_PATH);
 
 // --- Schema Initialization ---
@@ -128,6 +128,29 @@ export const saveSession = (session: Session) => {
         `).run(session.id, session.ownerId, session.sessionName, session.sessionDescription, session.imageUrl, session.sessionThumbnailUrl, annotationsJson, session.password, collaboratorIdsJson, session.createdAt, (session as any).lastActivity ?? session.createdAt, historyJson);
     }
 };
+
+export function countSessions(): number {
+  const row = db.prepare('SELECT COUNT(*) as c FROM sessions').get() as { c: number };
+  return row?.c || 0;
+}
+
+export function countUsers(): number {
+  const row = db.prepare('SELECT COUNT(*) as c FROM users').get() as { c: number };
+  return row?.c || 0;
+}
+
+export function getActiveCollaboratorEmails(sinceMs: number): string[] {
+  const rows = db.prepare('SELECT ownerId, collaboratorIds FROM sessions WHERE lastActivity >= ?').all(sinceMs) as { ownerId: string; collaboratorIds: string }[];
+  const emails = new Set<string>();
+  for (const r of rows) {
+    if (r.ownerId) emails.add(r.ownerId);
+    try {
+      const collabs: string[] = JSON.parse(r.collaboratorIds);
+      for (const e of collabs) if (e) emails.add(e);
+    } catch {}
+  }
+  return Array.from(emails);
+}
 
 export function getInactiveSessions(thresholdMs: number): { id: string; imageUrl: string; sessionThumbnailUrl?: string }[] {
   const rows = db.prepare(`SELECT id, imageUrl, sessionThumbnailUrl FROM sessions WHERE lastActivity < ?`).all(thresholdMs) as { id: string; imageUrl: string; sessionThumbnailUrl?: string }[];

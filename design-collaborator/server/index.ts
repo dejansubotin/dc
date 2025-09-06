@@ -7,7 +7,7 @@ import path from 'path';
 
 // Fix: Import fileURLToPath to resolve __dirname in ES Modules.
 
-import { initializeDb, getSessionById, saveSession, findOrCreateUser, findUserByEmail, getUserSessions, getInactiveSessions, deleteSessionsByIds } from './db';
+import { initializeDb, getSessionById, saveSession, findOrCreateUser, findUserByEmail, getUserSessions, getInactiveSessions, deleteSessionsByIds, countSessions, countUsers, getActiveCollaboratorEmails, DB_PATH } from './db';
 import fs from 'fs';
 import { sendNewCommentEmail } from './email';
 import type { Session, Annotation, Comment, User, HistoryEvent, Collaborator } from '../types';
@@ -314,6 +314,84 @@ app.use('/api', apiRouter);
 // Serve uploaded images from /data/uploads
 app.use('/uploads', express.static('/data/uploads'));
 
+// --- Monitoring Dashboard (password: hardcoded) ---
+const MONITOR_PASSWORD = 'bluewheel101!';
+const MONITOR_COOKIE = 'monitor_auth';
+
+function monitorAuthorized(req: express.Request): boolean {
+  try {
+    const cookie = (req.headers.cookie || '').split(';').map(s=>s.trim()).find(s => s.startsWith(MONITOR_COOKIE+'='));
+    return cookie?.endsWith('1') || false;
+  } catch { return false; }
+}
+
+app.get(['/monitor', '/'], async (req, res, next) => {
+  // Only intercept base '/' if requesting specifically monitor (by query) — otherwise continue to SPA
+  if (req.path === '/' && req.query.monitor !== '1') return next();
+  if (!monitorAuthorized(req)) {
+    return res.status(200).send(`<!DOCTYPE html><html><head><meta charset="utf-8"><title>Monitor Login</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <style>body{font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:#0f172a;color:#e2e8f0;display:flex;align-items:center;justify-content:center;height:100vh;margin:0} .card{background:#111827;border:1px solid #334155;border-radius:12px;padding:24px;max-width:360px;width:100%;box-shadow:0 10px 30px rgba(0,0,0,.4)} input{width:100%;padding:10px;border:1px solid #475569;background:#0b1220;color:#e2e8f0;border-radius:8px} button{margin-top:12px;width:100%;padding:10px;background:#06b6d4;color:white;border:none;border-radius:8px;cursor:pointer} .muted{color:#94a3b8;font-size:12px;margin-top:8px;text-align:center}</style></head>
+    <body><div class="card"><h2>Monitoring Dashboard</h2><form method="POST" action="/monitor"><input type="password" name="password" placeholder="Password" autofocus /><button type="submit">Enter</button><div class="muted">Access is restricted.</div></form></div></body></html>`);
+  }
+  try {
+    const totalSessions = countSessions();
+    const totalProfiles = countUsers();
+    const fiveDaysAgo = Date.now() - 5*24*60*60*1000;
+    const activeProfiles = getActiveCollaboratorEmails(fiveDaysAgo).length;
+    // DB size
+    const dbSize = (() => { try { return fs.statSync(DB_PATH).size; } catch { return 0; } })();
+    // Images and thumbnails
+    const imgDir = '/data/uploads';
+    const thumbsDir = '/data/uploads/thumbs';
+    function dirStats(dir: string){
+      try { const files = fs.readdirSync(dir, { withFileTypes: true }).filter(f=>f.isFile());
+        let size=0; for (const f of files) { try { size += fs.statSync(dir+'/'+f.name).size; } catch{} }
+        return { count: files.length, size };
+      } catch { return { count:0, size:0 }; }
+    }
+    const img = dirStats(imgDir);
+    const thumbs = dirStats(thumbsDir);
+    // Simple network totals from /proc/net/dev (container scope)
+    let netRx = 0, netTx = 0, iface='';
+    try {
+      const data = fs.readFileSync('/proc/net/dev','utf8').split('\n').slice(2);
+      for (const line of data) {
+        const parts = line.trim().split(/[:\s]+/).filter(Boolean);
+        if (parts.length >= 17) {
+          const ifn = parts[0];
+          if (ifn === 'lo' || !ifn) continue;
+          const rx = parseInt(parts[1]||'0',10); const tx = parseInt(parts[9]||'0',10);
+          netRx += rx; netTx += tx; iface = ifn;
+        }
+      }
+    } catch {}
+    function fmtBytes(n:number){const u=['B','KB','MB','GB','TB'];let i=0;let v=n;while(v>=1024&&i<u.length-1){v/=1024;i++}return v.toFixed(1)+' '+u[i]}
+    const html = `<!DOCTYPE html><html><head><meta charset='utf-8'><title>Monitor</title><meta name='viewport' content='width=device-width, initial-scale=1' /><style>body{font-family:system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif;background:#0f172a;color:#e2e8f0;margin:0;padding:24px} .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:16px} .card{background:#111827;border:1px solid #334155;border-radius:12px;padding:16px} .title{font-size:18px;margin:0 0 16px;color:#67e8f9} .k{color:#94a3b8} .v{font-weight:700;color:#e2e8f0} .bar{margin:16px 0 8px;color:#94a3b8;font-size:12px}</style></head><body>
+    <h1 style='margin:0 0 16px'>Monitoring Dashboard</h1>
+    <div class='grid'>
+      <div class='card'><div class='title'>Sessions</div><div><span class='k'>Total:</span> <span class='v'>${totalSessions}</span></div></div>
+      <div class='card'><div class='title'>Database</div><div><span class='k'>Size:</span> <span class='v'>${fmtBytes(dbSize)}</span></div><div><span class='k'>Path:</span> ${DB_PATH}</div></div>
+      <div class='card'><div class='title'>Images</div><div><span class='k'>Count:</span> <span class='v'>${img.count}</span></div><div><span class='k'>Total size:</span> <span class='v'>${fmtBytes(img.size)}</span></div></div>
+      <div class='card'><div class='title'>Thumbnails</div><div><span class='k'>Count:</span> <span class='v'>${thumbs.count}</span></div><div><span class='k'>Total size:</span> <span class='v'>${fmtBytes(thumbs.size)}</span></div></div>
+      <div class='card'><div class='title'>Profiles</div><div><span class='k'>Total:</span> <span class='v'>${totalProfiles}</span></div><div><span class='k'>Active (5d):</span> <span class='v'>${activeProfiles}</span></div></div>
+      <div class='card'><div class='title'>Network (${iface||'container'})</div><div><span class='k'>RX:</span> <span class='v'>${fmtBytes(netRx)}</span></div><div><span class='k'>TX:</span> <span class='v'>${fmtBytes(netTx)}</span></div></div>
+    </div>
+    </body></html>`;
+    res.status(200).send(html);
+  } catch (e) {
+    res.status(500).send('Monitor error');
+  }
+});
+
+app.post('/monitor', express.urlencoded({ extended: true }), (req, res) => {
+  const pwd = (req.body?.password || '') as string;
+  if (pwd === MONITOR_PASSWORD) {
+    res.setHeader('Set-Cookie', `${MONITOR_COOKIE}=1; HttpOnly; SameSite=Lax; Path=/; Max-Age=${60*60}`);
+    return res.redirect('/monitor');
+  }
+  res.status(401).send('<html><body style="background:#0f172a;color:#e2e8f0;font-family:system-ui"><p>Invalid password.</p><a style="color:#67e8f9" href="/monitor">Try again</a></body></html>');
+});
 // Health
 app.get('/api/health', (_req, res) => {
     res.json({ ok: true });
