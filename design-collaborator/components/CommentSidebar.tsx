@@ -55,6 +55,7 @@ const CommentSidebar: React.FC<CommentSidebarProps> = ({
   onAddComment, 
   onUpdateComment, 
   onDeleteComment,
+  onToggleLike,
   onCancelPending,
   onToggleSolve
 }) => {
