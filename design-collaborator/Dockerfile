@@ -11,7 +11,7 @@ COPY App.tsx ./App.tsx
 COPY index.tsx ./index.tsx
 COPY types.ts ./types.ts
 
-RUN npm ci
+RUN npm install
 RUN npm run build
 
 FROM nginx:1.25-alpine AS runner
@@ -21,4 +21,3 @@ COPY --from=builder /app/dist /usr/share/nginx/html
 
 EXPOSE 80
 CMD ["nginx", "-g", "daemon off;"]
-
