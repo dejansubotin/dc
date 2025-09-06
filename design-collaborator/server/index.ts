@@ -29,7 +29,7 @@ const PORT = process.env.PORT || 3000;
 
 app.use(cors());
 // Fix: No overload matches this call. Removed path argument to match a different overload.
-app.use(express.json({ limit: '10mb' })); // Increase limit for image data URLs
+app.use(express.json({ limit: '25mb' })); // Increase limit for image data URLs
 
 // --- WebSocket Logic ---
 io.on('connection', (socket) => {
@@ -78,22 +78,30 @@ apiRouter.get('/users/:email/sessions', (req, res) => {
 
 // Session routes
 apiRouter.post('/sessions', (req, res) => {
-    const { ownerEmail, imageDataUrl } = req.body;
-    if (!ownerEmail || !imageDataUrl) {
-        return res.status(400).json({ error: 'ownerEmail and imageDataUrl are required' });
+    try {
+        const { ownerEmail, imageDataUrl } = req.body;
+        if (!ownerEmail || !imageDataUrl) {
+            return res.status(400).json({ error: 'ownerEmail and imageDataUrl are required' });
+        }
+        // Ensure owner exists (defensive if FK is enforced)
+        findOrCreateUser(ownerEmail, ownerEmail.split('@')[0] || ownerEmail);
+
+        const newSession: Session = {
+            id: `sid_${Date.now()}`,
+            ownerId: ownerEmail,
+            imageUrl: imageDataUrl,
+            annotations: [],
+            collaboratorIds: [ownerEmail],
+            createdAt: Date.now(),
+            history: [],
+        };
+        appendHistory(newSession, { id: Date.now(), type: 'session_created', actor: ownerEmail, message: 'Session created', timestamp: Date.now() });
+        saveSession(newSession);
+        res.status(201).json(newSession);
+    } catch (err: any) {
+        console.error('Error creating session:', err?.message || err);
+        res.status(500).send('Internal Server Error');
     }
-    const newSession: Session = {
-        id: `sid_${Date.now()}`,
-        ownerId: ownerEmail,
-        imageUrl: imageDataUrl,
-        annotations: [],
-        collaboratorIds: [ownerEmail],
-        createdAt: Date.now(),
-        history: [],
-    };
-    appendHistory(newSession, { id: Date.now(), type: 'session_created', actor: ownerEmail, message: 'Session created', timestamp: Date.now() });
-    saveSession(newSession);
-    res.status(201).json(newSession);
 });
 
 apiRouter.get('/sessions/:id', (req, res) => {
@@ -213,6 +221,11 @@ apiRouter.post('/sessions/:id/annotations/:annoId/comments', async (req, res) =>
 
 // Use the API router
 app.use('/api', apiRouter);
+
+// Health
+app.get('/api/health', (_req, res) => {
+    res.json({ ok: true });
+});
 
 // Serve frontend
 // Fix: No overload matches this call. Removed path argument to match a different overload.

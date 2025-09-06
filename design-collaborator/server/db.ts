@@ -1,7 +1,9 @@
 import Database from 'better-sqlite3';
+import path from 'path';
 import type { Session, Annotation, Comment, User } from '../types';
 
-const db = new Database('collaborator.db');
+const DB_PATH = process.env.DB_PATH || '/app/collaborator.db';
+const db = new Database(DB_PATH);
 
 // --- Schema Initialization ---
 export function initializeDb() {
@@ -72,7 +74,6 @@ export const getSessionById = (id: string): Session | null => {
 };
 
 export const getUserSessions = (email: string): Session[] => {
-    const rows = db.prepare("SELECT * FROM sessions WHERE json_each.value = ?").all(email)
     const sessions: Session[] = [];
     // This is a naive way to find sessions for a user.
     // A better approach would be a dedicated collaborators table for larger scale.
