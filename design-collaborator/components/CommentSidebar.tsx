@@ -171,12 +171,12 @@ const CommentSidebar: React.FC<CommentSidebarProps> = ({
                 </button>
               ) : <span />}
               <div className="flex items-center gap-4">
-                <span className="relative group">
+                <span className="relative group/like">
                   <button onClick={() => onToggleLike(activeAnnotationId!, comment.id, !hasLiked)} className={`text-xs ${hasLiked ? 'text-pink-400' : 'text-gray-400'} hover:text-pink-300`}>
                     {hasLiked ? '♥' : '♡'} {likes.length || ''}
                   </button>
                   {likes.length > 0 && (
-                    <div className="absolute bottom-full right-0 mb-2 hidden group-hover:block bg-gray-900 text-gray-200 text-xs whitespace-pre-line border border-gray-700 rounded px-2 py-1 shadow-lg z-10 max-w-xs">
+                    <div className="absolute bottom-full right-0 mb-2 hidden group-hover/like:block bg-gray-900 text-gray-200 text-xs whitespace-pre-line border border-gray-700 rounded px-2 py-1 shadow-lg z-10 max-w-xs">
                       {likes.slice(0, 10).map(e => nameByEmail[e] || e).join('\n')}{likes.length > 10 ? `\n+${likes.length - 10} more` : ''}
                     </div>
                   )}
