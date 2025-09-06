@@ -9,7 +9,7 @@ import path from 'path';
 
 import { initializeDb, getSessionById, saveSession, findOrCreateUser, findUserByEmail, getUserSessions } from './db';
 import { sendNewCommentEmail } from './email';
-import type { Session, Annotation, Comment, User, HistoryEvent } from '../types';
+import type { Session, Annotation, Comment, User, HistoryEvent, Collaborator } from '../types';
 
 dotenv.config();
 initializeDb();
@@ -45,8 +45,16 @@ io.on('connection', (socket) => {
   });
 });
 
+const enrichSession = (session: Session): Session => {
+    const profiles: Collaborator[] = session.collaboratorIds
+        .map(email => findUserByEmail(email))
+        .filter((u): u is User => !!u)
+        .map(u => ({ email: u.email, displayName: u.displayName }));
+    return { ...session, collaboratorProfiles: profiles };
+};
+
 const broadcastSessionUpdate = (sessionId: string, session: Session) => {
-    io.to(sessionId).emit('session_updated', session);
+    io.to(sessionId).emit('session_updated', enrichSession(session));
 };
 
 const appendHistory = (session: Session, event: HistoryEvent) => {
@@ -98,7 +106,7 @@ apiRouter.post('/sessions', (req, res) => {
         };
         appendHistory(newSession, { id: Date.now(), type: 'session_created', actor: ownerEmail, message: `Session created${sessionName ? `: ${sessionName}` : ''}`, timestamp: Date.now() });
         saveSession(newSession);
-        res.status(201).json(newSession);
+        res.status(201).json(enrichSession(newSession));
     } catch (err: any) {
         console.error('Error creating session:', err?.message || err);
         res.status(500).send('Internal Server Error');
@@ -112,7 +120,7 @@ apiRouter.get('/sessions/:id', (req, res) => {
     const caller = (req.header('x-user-email') || '').toLowerCase();
     const isAllowed = caller && (caller === session.ownerId.toLowerCase() || session.collaboratorIds.map(e=>e.toLowerCase()).includes(caller));
     if (!isAllowed) return res.status(403).json({ error: 'Authentication required' });
-    res.json(session);
+    res.json(enrichSession(session));
 });
 
 apiRouter.post('/sessions/:id/collaborators', (req, res) => {
@@ -130,7 +138,7 @@ apiRouter.post('/sessions/:id/collaborators', (req, res) => {
     appendHistory(session, { id: Date.now(), type: 'user_joined', actor: email, message: `${displayName} joined`, timestamp: Date.now() });
     saveSession(session);
     broadcastSessionUpdate(session.id, session);
-    res.json(session);
+    res.json(enrichSession(session));
 });
 
 apiRouter.put('/sessions/:id/password', (req, res) => {
@@ -140,7 +148,7 @@ apiRouter.put('/sessions/:id/password', (req, res) => {
     appendHistory(session, { id: Date.now(), type: session.password ? 'password_set' : 'password_removed', actor: req.body.actor || undefined, message: session.password ? 'Password set' : 'Password removed', timestamp: Date.now() });
     saveSession(session);
     broadcastSessionUpdate(session.id, session);
-    res.json(session);
+    res.json(enrichSession(session));
 });
 
 // Annotation and Comment routes
@@ -152,7 +160,7 @@ apiRouter.post('/sessions/:id/annotations', (req, res) => {
     appendHistory(session, { id: Date.now(), type: 'annotation_added', actor: req.body.actor || undefined, message: `Annotation ${annotation.id} added`, timestamp: Date.now() });
     saveSession(session);
     broadcastSessionUpdate(session.id, session);
-    res.status(201).json(session);
+    res.status(201).json(enrichSession(session));
 });
 
 apiRouter.delete('/sessions/:id/annotations/:annoId', (req, res) => {
@@ -162,7 +170,7 @@ apiRouter.delete('/sessions/:id/annotations/:annoId', (req, res) => {
     appendHistory(session, { id: Date.now(), type: 'annotation_deleted', actor: req.body.actor || undefined, message: `Annotation ${req.params.annoId} deleted`, timestamp: Date.now() });
     saveSession(session);
     broadcastSessionUpdate(session.id, session);
-    res.json(session);
+    res.json(enrichSession(session));
 });
 
 apiRouter.put('/sessions/:id/annotations/:annoId/solve', (req, res) => {
@@ -175,7 +183,7 @@ apiRouter.put('/sessions/:id/annotations/:annoId/solve', (req, res) => {
     appendHistory(session, { id: Date.now(), type: isSolved ? 'annotation_solved' : 'annotation_reopened', actor: req.body.actor || undefined, message: `Annotation ${req.params.annoId} ${isSolved ? 'solved' : 'reopened'}`, timestamp: Date.now() });
     saveSession(session);
     broadcastSessionUpdate(session.id, session);
-    res.json(session);
+    res.json(enrichSession(session));
 });
 
 apiRouter.post('/sessions/:id/annotations/:annoId/comments', async (req, res) => {
@@ -219,7 +227,7 @@ apiRouter.post('/sessions/:id/annotations/:annoId/comments', async (req, res) =>
         
     await sendNewCommentEmail(session, newComment, recipients);
     
-    res.status(201).json(session);
+    res.status(201).json(enrichSession(session));
 });
 
 // Like/unlike a comment
@@ -248,7 +256,7 @@ apiRouter.put('/sessions/:id/annotations/:annoId/comments/:commentId/like', (req
     appendHistory(session, { id: Date.now(), type: like ? 'comment_liked' : 'comment_unliked', actor: userEmail, message: `${userEmail} ${like ? 'liked' : 'unliked'} comment ${commentId}`, timestamp: Date.now() });
     saveSession(session);
     broadcastSessionUpdate(session.id, session);
-    res.json(session);
+    res.json(enrichSession(session));
 });
 
 // Use the API router

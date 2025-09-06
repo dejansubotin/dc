@@ -41,6 +41,7 @@ export interface Session {
   collaboratorIds: string[]; // array of user emails
   createdAt: number;
   history?: HistoryEvent[];
+  collaboratorProfiles?: Collaborator[];
 }
 
 export interface HistoryEvent {
@@ -49,4 +50,9 @@ export interface HistoryEvent {
   actor?: string; // email of user performing action
   message: string;
   timestamp: number;
+}
+
+export interface Collaborator {
+  email: string;
+  displayName: string;
 }

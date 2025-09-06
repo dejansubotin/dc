@@ -9,11 +9,13 @@ A real‑time, web‑based tool for design review and visual feedback. Users upl
 ## Key Features
 
 - Real‑time updates via Socket.IO
-- Region‑specific annotations with threaded comments (one‑level replies)
-- Session sharing with optional password
+- Region‑specific annotations with threaded comments (multi‑level) and collapsible threads with reply counts
+- Comment likes with live updates
+- Session sharing with optional password and strict access control (membership required to view)
 - Session history log (who did what, when)
+- “My Sessions” view to quickly open your sessions in new tabs
 - Email notifications on new comments (optional SMTP)
-- Session list for returning users
+- Session naming on creation for better recognition
 
 ## Architecture
 
@@ -37,9 +39,9 @@ A real‑time, web‑based tool for design review and visual feedback. Users upl
 ## Data Model (types.ts)
 
 - `User`: `{ email, displayName }`
-- `Comment`: `{ id, userId, author, text, timestamp, parentId? }` (parentId for replies)
+- `Comment`: `{ id, userId, author, text, timestamp, parentId?, likes?: string[] }`
 - `Annotation`: `{ id, x, y, width, height, comments: Comment[], isSolved }`
-- `Session`: `{ id, ownerId, imageUrl, annotations, password?, collaboratorIds, createdAt, history? }`
+- `Session`: `{ id, ownerId, sessionName?, imageUrl, annotations, password?, collaboratorIds, createdAt, history? }`
 - `HistoryEvent`: `{ id, type, actor?, message, timestamp }`
 
 Notes:
@@ -52,14 +54,15 @@ Base path: `/api`
 
 - `POST /users` — create/find user: `{ email, displayName }`
 - `GET /users/:email/sessions` — recent sessions for a user
-- `POST /sessions` — create session: `{ ownerEmail, imageDataUrl }`
-- `GET /sessions/:id` — get session
+- `POST /sessions` — create session: `{ ownerEmail, imageDataUrl, sessionName? }`
+- `GET /sessions/:id` — get session (requires membership). Client sends `x-user-email` header for identity.
 - `POST /sessions/:id/collaborators` — join session: `{ email, displayName, password? }`
 - `PUT /sessions/:id/password` — set/remove password: `{ password? }`
 - `POST /sessions/:id/annotations` — add annotation: `{ annotation }`
 - `DELETE /sessions/:id/annotations/:annoId` — delete annotation
 - `PUT /sessions/:id/annotations/:annoId/solve` — toggle solved: `{ isSolved }`
 - `POST /sessions/:id/annotations/:annoId/comments` — add comment or reply: `{ userEmail, text, parentId? }`
+- `PUT /sessions/:id/annotations/:annoId/comments/:commentId/like` — like/unlike a comment: `{ userEmail, like }`
 - `GET /health` — simple health check `{ ok: true }`
 
 WebSockets (Socket.IO):
@@ -113,7 +116,7 @@ WebSockets (Socket.IO):
 
 ## Security & Limits
 
-- Session password is a basic shared secret; not a user auth system.
+- Session password is a basic shared secret; not a user auth system. Reading a session requires membership (owner/collaborator).
 - Increase Nginx/body limits if you plan larger images.
 
 ## Future Ideas
@@ -121,4 +124,3 @@ WebSockets (Socket.IO):
 - File storage instead of base64 (e.g., object storage) for large images
 - Multi‑level threaded comments and comment edit/delete history
 - Fine‑grained access control per session
-

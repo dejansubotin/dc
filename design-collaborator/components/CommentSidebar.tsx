@@ -14,6 +14,7 @@ interface CommentSidebarProps {
   onToggleLike: (annotationId: number, commentId: number, like: boolean) => void;
   onCancelPending: () => void;
   onToggleSolve: (annotationId: number) => void;
+  collaborators: { email: string; displayName: string }[];
 }
 
 const CommentIcon: React.FC = () => (
@@ -57,7 +58,8 @@ const CommentSidebar: React.FC<CommentSidebarProps> = ({
   onDeleteComment,
   onToggleLike,
   onCancelPending,
-  onToggleSolve
+  onToggleSolve,
+  collaborators
 }) => {
   const [newComment, setNewComment] = useState('');
   const [editingComment, setEditingComment] = useState<{ id: number; text: string } | null>(null);
@@ -129,6 +131,8 @@ const CommentSidebar: React.FC<CommentSidebarProps> = ({
   }
 
   const toggleCollapsed = (id: number) => setCollapsed(prev => ({ ...prev, [id]: !prev[id] }));
+  const nameByEmail: Record<string, string> = {};
+  collaborators.forEach(c => { nameByEmail[c.email] = c.displayName; });
 
   const renderCommentTree = (comment: Annotation['comments'][number], depth = 0) => {
     const canModify = currentUser?.email === comment.userId;
@@ -167,9 +171,16 @@ const CommentSidebar: React.FC<CommentSidebarProps> = ({
                 </button>
               ) : <span />}
               <div className="flex items-center gap-4">
-                <button onClick={() => onToggleLike(activeAnnotationId!, comment.id, !hasLiked)} className={`text-xs ${hasLiked ? 'text-pink-400' : 'text-gray-400'} hover:text-pink-300`}>
-                  {hasLiked ? '♥' : '♡'} {likes.length || ''}
-                </button>
+                <span className="relative group">
+                  <button onClick={() => onToggleLike(activeAnnotationId!, comment.id, !hasLiked)} className={`text-xs ${hasLiked ? 'text-pink-400' : 'text-gray-400'} hover:text-pink-300`}>
+                    {hasLiked ? '♥' : '♡'} {likes.length || ''}
+                  </button>
+                  {likes.length > 0 && (
+                    <div className="absolute bottom-full right-0 mb-2 hidden group-hover:block bg-gray-900 text-gray-200 text-xs whitespace-pre-line border border-gray-700 rounded px-2 py-1 shadow-lg z-10 max-w-xs">
+                      {likes.slice(0, 10).map(e => nameByEmail[e] || e).join('\n')}{likes.length > 10 ? `\n+${likes.length - 10} more` : ''}
+                    </div>
+                  )}
+                </span>
                 {!isSolved && (
                   <button onClick={() => setReplyTo(comment.id)} className="text-xs text-cyan-400 hover:text-cyan-300">Reply</button>
                 )}

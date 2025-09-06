@@ -344,6 +344,7 @@ const App: React.FC = () => {
                   onToggleLike={handleToggleLike}
                   onCancelPending={handleCancelPending}
                   onToggleSolve={handleToggleSolve}
+                  collaborators={currentSession.collaboratorProfiles || []}
                 />
               </div>
             </div>

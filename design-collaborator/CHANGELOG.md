@@ -8,6 +8,22 @@ The format is based on Keep a Changelog and this project adheres to Semantic Ver
 
 - TBD
 
+## [0.4.0] - 2025-09-06
+
+### Added
+- Multi-level threaded replies with collapsible threads and reply counts.
+- Comment likes (♥/♡) with live updates; new endpoint to toggle likes.
+- Session naming on creation (`sessionName`) and display in lists/history.
+- “My Sessions” modal and header button to open sessions in new tabs.
+- Login modal improvements: dynamic password requirement and protected-session label.
+
+### Changed
+- Access control: All sessions now require membership (owner or collaborator) to read.
+- Client join-first flow: attempts to join on shared link, then fetch; includes `x-user-email` header on reads.
+
+### Fixed
+- Password prompt no longer appears for non-protected sessions when joining via a shared link.
+
 ## [0.3.1] - 2025-09-06
 
 ### Fixed
@@ -47,7 +63,8 @@ The format is based on Keep a Changelog and this project adheres to Semantic Ver
 ### Added
 - Initial codebase with React frontend, Node/Express backend, and SQLite persistence.
 
-[Unreleased]: https://example.com/compare/v0.3.1...HEAD
+[Unreleased]: https://example.com/compare/v0.4.0...HEAD
+[0.4.0]: https://example.com/compare/v0.3.1...v0.4.0
 [0.3.1]: https://example.com/compare/v0.3.0...v0.3.1
 [0.3.0]: https://example.com/compare/v0.2.0...v0.3.0
 [0.2.0]: https://example.com/compare/v0.1.0...v0.2.0
