@@ -33,7 +33,7 @@ const SessionHistory: React.FC<SessionHistoryProps> = ({ sessions, onSelectSessi
               className="w-16 h-10 object-cover rounded-md mr-4 bg-gray-900" 
             />
             <div className="flex-grow">
-              <p className="font-semibold text-gray-200">Session {session.id.substring(0, 8)}...</p>
+              <p className="font-semibold text-gray-200">{session.sessionName || `Session ${session.id.substring(0, 8)}...`}</p>
               <p className="text-sm text-gray-400">
                 Created on {new Date(session.createdAt).toLocaleDateString()}
               </p>

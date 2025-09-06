@@ -34,6 +34,7 @@ export interface SelectionRectangle {
 export interface Session {
   id: string;
   ownerId: string; // user's email
+  sessionName?: string;
   imageUrl: string;
   annotations: Annotation[];
   password?: string;

@@ -79,7 +79,7 @@ apiRouter.get('/users/:email/sessions', (req, res) => {
 // Session routes
 apiRouter.post('/sessions', (req, res) => {
     try {
-        const { ownerEmail, imageDataUrl } = req.body;
+        const { ownerEmail, imageDataUrl, sessionName } = req.body;
         if (!ownerEmail || !imageDataUrl) {
             return res.status(400).json({ error: 'ownerEmail and imageDataUrl are required' });
         }
@@ -89,13 +89,14 @@ apiRouter.post('/sessions', (req, res) => {
         const newSession: Session = {
             id: `sid_${Date.now()}`,
             ownerId: ownerEmail,
+            sessionName,
             imageUrl: imageDataUrl,
             annotations: [],
             collaboratorIds: [ownerEmail],
             createdAt: Date.now(),
             history: [],
         };
-        appendHistory(newSession, { id: Date.now(), type: 'session_created', actor: ownerEmail, message: 'Session created', timestamp: Date.now() });
+        appendHistory(newSession, { id: Date.now(), type: 'session_created', actor: ownerEmail, message: `Session created${sessionName ? `: ${sessionName}` : ''}`, timestamp: Date.now() });
         saveSession(newSession);
         res.status(201).json(newSession);
     } catch (err: any) {

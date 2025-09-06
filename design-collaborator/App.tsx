@@ -6,6 +6,7 @@ import CommentSidebar from './components/CommentSidebar';
 import ConfirmationModal from './components/ConfirmationModal';
 import LoginModal from './components/LoginModal';
 import ShareModal from './components/ShareModal';
+import MySessionsModal from './components/MySessionsModal';
 import HistoryModal from './components/HistoryModal';
 import SessionHistory from './components/SessionHistory';
 import type { Annotation, SelectionRectangle, User, Session, Comment } from './types';
@@ -29,6 +30,7 @@ const App: React.FC = () => {
     callback: (user?: User) => void;
     message?: string;
     errorMessage?: string;
+    requirePassword?: boolean;
   }>({ isOpen: false, isJoining: false, callback: () => {} });
 
   // --- Editor State ---
@@ -39,6 +41,7 @@ const App: React.FC = () => {
   const [deleteModalState, setDeleteModalState] = useState({ isOpen: false, annotationId: null as number | null });
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const [historyOpen, setHistoryOpen] = useState(false);
+  const [mySessionsOpen, setMySessionsOpen] = useState(false);
 
   // --- Initialization and Socket Effect ---
   useEffect(() => {
@@ -60,7 +63,7 @@ const App: React.FC = () => {
       if (sessionId) {
         // Require user details before accessing a shared session
         if (!user) {
-          setLoginModalState({ isOpen: true, isJoining: true, message: 'Access required. Please enter your name and email (and password if required) to join this session.', callback: () => window.location.reload() });
+          setLoginModalState({ isOpen: true, isJoining: true, requirePassword: false, message: 'Access required. Please enter your name and email (and password if required) to join this session.', callback: () => window.location.reload() });
           setIsLoading(false);
           return;
         }
@@ -71,7 +74,7 @@ const App: React.FC = () => {
           setCurrentSession(session);
         } catch (error) {
           console.error("Join or fetch failed; likely needs password.", error);
-          setLoginModalState({ isOpen: true, isJoining: true, message: 'Access required. This session may be password-protected. Please enter your details to continue.', errorMessage: (error as Error)?.message || 'Authentication required', callback: () => window.location.reload() });
+          setLoginModalState({ isOpen: true, isJoining: true, requirePassword: true, message: 'Access required. This session may be password-protected. Please enter your details to continue.', errorMessage: (error as Error)?.message || 'Authentication required', callback: () => window.location.reload() });
         }
       } else if (!user) {
         setLoginModalState({ isOpen: true, isJoining: false, callback: (newUser) => setCurrentUser(newUser || null) });
@@ -137,11 +140,12 @@ const App: React.FC = () => {
 
   const handleImageUpload = useCallback(async (file: File) => {
     if (!currentUser) return;
+    const name = window.prompt('Name this session (e.g., Project / Screen)') || '';
     const reader = new FileReader();
     reader.onload = async () => {
       const imageDataUrl = reader.result as string;
       try {
-        const newSession = await api.createSession(currentUser.email, imageDataUrl);
+        const newSession = await api.createSession(currentUser.email, imageDataUrl, name.trim() || undefined);
         setCurrentSession(newSession);
         window.history.pushState({}, '', `?sessionId=${newSession.id}`);
       } catch (error) {
@@ -296,6 +300,11 @@ const App: React.FC = () => {
                 </button>
               </>
             )}
+            {currentUser && (
+              <button onClick={() => setMySessionsOpen(true)} className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white font-semibold rounded-lg shadow-md transition-colors duration-300">
+                My Sessions
+              </button>
+            )}
             {currentUser && !currentSession && (
               <button onClick={resetProject} className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white font-semibold rounded-lg shadow-md transition-colors duration-300">
                 New Session
@@ -344,7 +353,7 @@ const App: React.FC = () => {
 
       <LoginModal 
         isOpen={loginModalState.isOpen}
-        isJoiningWithPassword={loginModalState.isJoining}
+        isJoiningWithPassword={!!loginModalState.requirePassword}
         message={loginModalState.message}
         externalError={loginModalState.errorMessage}
         onSubmit={handleLogin}
@@ -360,6 +369,13 @@ const App: React.FC = () => {
           isOpen={historyOpen}
           onClose={() => setHistoryOpen(false)}
           events={currentSession.history || []}
+        />
+      )}
+      {currentUser && (
+        <MySessionsModal
+          isOpen={mySessionsOpen}
+          onClose={() => setMySessionsOpen(false)}
+          sessions={userSessions}
         />
       )}
       <ConfirmationModal

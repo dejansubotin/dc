@@ -72,6 +72,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, isJoiningWithPassword =
             </div>
             {isJoiningWithPassword && (
               <div>
+                <div className="mb-2 text-sm text-yellow-300">This session is password‑protected.</div>
                 <label htmlFor="password" className="block text-sm font-medium text-gray-300 mb-1">Session Password</label>
                 <input
                   id="password"
