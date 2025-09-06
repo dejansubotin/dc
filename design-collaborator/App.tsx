@@ -135,6 +135,7 @@ const App: React.FC = () => {
         setLoginModalState(prev => ({
           isOpen: true,
           isJoining: prev.isJoining,
+          requirePassword: prev.isJoining && sessionId ? true : prev.requirePassword,
           message: prev.message || 'Please try again.',
           errorMessage: (error as Error)?.message || 'Authentication failed',
           callback: prev.callback || (() => {})
