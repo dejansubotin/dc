@@ -1,0 +1,32 @@
+version: '3.8'
+
+services:
+  server:
+    build:
+      context: ./server
+      dockerfile: Dockerfile
+    container_name: image-collaborator-server
+    environment:
+      - NODE_ENV=production
+      # Used for links in emails (set your domain in prod)
+      - APP_BASE_URL=${APP_BASE_URL:-http://localhost:8080}
+      - SMTP_HOST=${SMTP_HOST:-}
+      - SMTP_PORT=${SMTP_PORT:-587}
+      - SMTP_USER=${SMTP_USER:-}
+      - SMTP_PASS=${SMTP_PASS:-}
+      - SMTP_FROM_EMAIL=${SMTP_FROM_EMAIL:-}
+    expose:
+      - "3000"
+    volumes:
+      # Persist the SQLite database file
+      - ./data/collaborator.db:/app/collaborator.db
+
+  frontend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: image-collaborator-frontend
+    ports:
+      - "8080:80"
+    depends_on:
+      - server
