@@ -147,3 +147,12 @@ export const deleteComment = (sessionId: string, annotationId: number, commentId
         method: 'DELETE',
     }).then(response => handleResponse<Session>(response));
 };
+
+export const likeComment = (sessionId: string, annotationId: number, commentId: number, like: boolean): Promise<Session> => {
+  const user = getLocalUser();
+  return fetch(`${API_BASE_URL}/sessions/${sessionId}/annotations/${annotationId}/comments/${commentId}/like`, {
+    method: 'PUT',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ userEmail: user?.email, like }),
+  }).then(response => handleResponse<Session>(response));
+};

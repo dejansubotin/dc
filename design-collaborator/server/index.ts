@@ -192,6 +192,7 @@ apiRouter.post('/sessions/:id/annotations/:annoId/comments', async (req, res) =>
         text,
         timestamp: Date.now(),
         parentId: typeof parentId === 'number' ? parentId : undefined,
+        likes: [],
     };
 
     let annotationFound = false;
@@ -218,6 +219,35 @@ apiRouter.post('/sessions/:id/annotations/:annoId/comments', async (req, res) =>
     await sendNewCommentEmail(session, newComment, recipients);
     
     res.status(201).json(session);
+});
+
+// Like/unlike a comment
+apiRouter.put('/sessions/:id/annotations/:annoId/comments/:commentId/like', (req, res) => {
+    const session = getSessionById(req.params.id);
+    if (!session) return res.status(404).json({ error: 'Session not found' });
+    const annoId = parseInt(req.params.annoId);
+    const commentId = parseInt(req.params.commentId);
+    const { userEmail, like } = req.body as { userEmail: string; like: boolean };
+    if (!userEmail) return res.status(400).json({ error: 'userEmail is required' });
+
+    let found = false;
+    session.annotations = session.annotations.map(a => {
+        if (a.id !== annoId) return a;
+        a.comments = a.comments.map(c => {
+            if (c.id !== commentId) return c;
+            found = true;
+            const set = new Set(c.likes || []);
+            if (like) set.add(userEmail); else set.delete(userEmail);
+            return { ...c, likes: Array.from(set) };
+        });
+        return a;
+    });
+    if (!found) return res.status(404).json({ error: 'Comment not found' });
+
+    appendHistory(session, { id: Date.now(), type: like ? 'comment_liked' : 'comment_unliked', actor: userEmail, message: `${userEmail} ${like ? 'liked' : 'unliked'} comment ${commentId}`, timestamp: Date.now() });
+    saveSession(session);
+    broadcastSessionUpdate(session.id, session);
+    res.json(session);
 });
 
 // Use the API router

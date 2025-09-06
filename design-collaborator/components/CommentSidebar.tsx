@@ -11,6 +11,7 @@ interface CommentSidebarProps {
   onAddComment: (annotationId: number, commentText: string, parentId?: number) => void;
   onUpdateComment: (annotationId: number, commentId: number, newText: string) => void;
   onDeleteComment: (annotationId: number, commentId: number) => void;
+  onToggleLike: (annotationId: number, commentId: number, like: boolean) => void;
   onCancelPending: () => void;
   onToggleSolve: (annotationId: number) => void;
 }
@@ -61,6 +62,7 @@ const CommentSidebar: React.FC<CommentSidebarProps> = ({
   const [editingComment, setEditingComment] = useState<{ id: number; text: string } | null>(null);
   const [replyTo, setReplyTo] = useState<number | null>(null);
   const [replyText, setReplyText] = useState('');
+  const [collapsed, setCollapsed] = useState<Record<number, boolean>>({});
 
   const activeAnnotation = 
     (activeAnnotationId && pendingAnnotation?.id === activeAnnotationId ? pendingAnnotation : null) || 
@@ -74,6 +76,7 @@ const CommentSidebar: React.FC<CommentSidebarProps> = ({
     setEditingComment(null);
     setReplyTo(null);
     setReplyText('');
+    setCollapsed({});
   }, [activeAnnotationId]);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -105,9 +108,34 @@ const CommentSidebar: React.FC<CommentSidebarProps> = ({
     setReplyTo(null);
   };
 
-  const renderComment = (comment: Annotation['comments'][number], isReply = false) => {
+  // Build children map for recursive threads
+  const childrenMap: Record<number, Annotation['comments']> = {} as any;
+  const roots: Annotation['comments'] = [] as any;
+  if (activeAnnotation) {
+    for (const c of activeAnnotation.comments) {
+      if (typeof c.parentId === 'number') {
+        if (!childrenMap[c.parentId]) childrenMap[c.parentId] = [] as any;
+        childrenMap[c.parentId].push(c);
+      } else {
+        roots.push(c);
+      }
+    }
+    // Sort by time
+    roots.sort((a,b)=>a.timestamp-b.timestamp);
+    for (const k of Object.keys(childrenMap)) {
+      childrenMap[+k].sort((a,b)=>a.timestamp-b.timestamp);
+    }
+  }
+
+  const toggleCollapsed = (id: number) => setCollapsed(prev => ({ ...prev, [id]: !prev[id] }));
+
+  const renderCommentTree = (comment: Annotation['comments'][number], depth = 0) => {
     const canModify = currentUser?.email === comment.userId;
-    const containerCls = isReply ? 'ml-6 bg-gray-700/30' : 'bg-gray-700/50';
+    const hasChildren = !!childrenMap[comment.id]?.length;
+    const isCollapsed = !!collapsed[comment.id];
+    const containerCls = depth > 0 ? 'ml-6 bg-gray-700/30' : 'bg-gray-700/50';
+    const likes = comment.likes || [];
+    const hasLiked = currentUser ? likes.includes(currentUser.email) : false;
     return (
       <div key={comment.id} className={`${containerCls} p-3 rounded-lg group relative`}> 
         {canModify && !isSolved && (
@@ -131,21 +159,36 @@ const CommentSidebar: React.FC<CommentSidebarProps> = ({
         ) : (
           <>
             <p className="text-gray-300 whitespace-pre-wrap pr-16">{comment.text}</p>
-            {!isSolved && (
-              <div className="mt-2 flex justify-end">
-                <button onClick={() => setReplyTo(comment.id)} className="text-xs text-cyan-400 hover:text-cyan-300">Reply</button>
+            <div className="mt-2 flex items-center justify-between">
+              {hasChildren ? (
+                <button onClick={() => toggleCollapsed(comment.id)} className="text-xs text-gray-400 hover:text-gray-200">
+                  {isCollapsed ? `Show ${childrenMap[comment.id].length} repl${childrenMap[comment.id].length===1?'y':'ies'}` : `Hide repl${childrenMap[comment.id].length===1?'y':'ies'}`}
+                </button>
+              ) : <span />}
+              <div className="flex items-center gap-4">
+                <button onClick={() => onToggleLike(activeAnnotationId!, comment.id, !hasLiked)} className={`text-xs ${hasLiked ? 'text-pink-400' : 'text-gray-400'} hover:text-pink-300`}>
+                  {hasLiked ? '♥' : '♡'} {likes.length || ''}
+                </button>
+                {!isSolved && (
+                  <button onClick={() => setReplyTo(comment.id)} className="text-xs text-cyan-400 hover:text-cyan-300">Reply</button>
+                )}
               </div>
-            )}
+            </div>
             {replyTo === comment.id && (
               <div className="mt-2">
                 <textarea value={replyText} onChange={(e) => setReplyText(e.target.value)} rows={2} className="w-full p-2 bg-gray-900 border border-gray-600 rounded-md focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none transition" placeholder="Write a reply..." />
-                <div className="flex gap-2 mt-2">
+                <div className="flex gap-2 mt-2 justify-end">
                   <button onClick={() => handleSubmitReply(comment.id)} disabled={!replyText.trim()} className="px-3 py-1 bg-cyan-600 text-white text-sm font-semibold rounded-md hover:bg-cyan-700 disabled:bg-gray-500">Reply</button>
                   <button onClick={() => { setReplyTo(null); setReplyText(''); }} className="px-3 py-1 bg-gray-600 text-white text-sm font-semibold rounded-md hover:bg-gray-500">Cancel</button>
                 </div>
               </div>
             )}
           </>
+        )}
+        {!isCollapsed && hasChildren && (
+          <div className="mt-3 space-y-3">
+            {childrenMap[comment.id].map(child => renderCommentTree(child, depth + 1))}
+          </div>
         )}
       </div>
     );
@@ -190,25 +233,7 @@ const CommentSidebar: React.FC<CommentSidebarProps> = ({
               </p>
             )}
             <div className="space-y-4">
-              {(() => {
-                const roots = activeAnnotation.comments.filter(c => !('parentId' in c) || c.parentId === undefined);
-                const byParent: Record<number, typeof activeAnnotation.comments> = {} as any;
-                activeAnnotation.comments.forEach(c => {
-                  if (c.parentId !== undefined) {
-                    if (!byParent[c.parentId]) byParent[c.parentId] = [] as any;
-                    byParent[c.parentId].push(c);
-                  }
-                });
-                const ordered = roots.sort((a,b) => a.timestamp - b.timestamp);
-                return ordered.map(root => (
-                  <div key={root.id} className="space-y-3">
-                    {renderComment(root, false)}
-                    {(byParent[root.id] || []).sort((a,b)=>a.timestamp-b.timestamp).map(child => (
-                      <div key={child.id}>{renderComment(child, true)}</div>
-                    ))}
-                  </div>
-                ));
-              })()}
+              {roots.map(root => renderCommentTree(root, 0))}
             </div>
           </div>
         )}

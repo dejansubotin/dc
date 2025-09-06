@@ -215,6 +215,11 @@ const App: React.FC = () => {
     await api.deleteComment(currentSession.id, annotationId, commentId);
   }, [currentSession]);
 
+  const handleToggleLike = useCallback(async (annotationId: number, commentId: number, like: boolean) => {
+    if (!currentSession) return;
+    await api.likeComment(currentSession.id, annotationId, commentId, like);
+  }, [currentSession]);
+
   const handleAnnotationClick = useCallback((annotationId: number) => {
     if (pendingAnnotation) setPendingAnnotation(null);
     setActiveAnnotationId(annotationId);
@@ -327,6 +332,7 @@ const App: React.FC = () => {
                   onAddComment={handleAddComment}
                   onUpdateComment={handleUpdateComment}
                   onDeleteComment={handleDeleteComment}
+                  onToggleLike={handleToggleLike}
                   onCancelPending={handleCancelPending}
                   onToggleSolve={handleToggleSolve}
                 />
