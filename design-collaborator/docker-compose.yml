@@ -5,7 +5,7 @@ services:
     build:
       context: .
       dockerfile: server/Dockerfile
-    container_name: image-collaborator-server
+    # Let Docker/Coolify manage container names
     environment:
       - NODE_ENV=production
       # Used for links in emails (set your domain in prod)
@@ -25,7 +25,6 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: image-collaborator-frontend
     ports:
       - "${PUBLIC_PORT:-8081}:80"
     depends_on:

@@ -8,12 +8,13 @@ RUN apt-get update && apt-get install -y python3 g++ make && rm -rf /var/lib/apt
 
 # Install dependencies (including devDeps for building)
 COPY server/package.json server/tsconfig.json ./
-RUN npm install --production=false
+# Prefer ci if a lockfile exists, otherwise install
+RUN if [ -f package-lock.json ]; then npm ci; else npm install --production=false; fi
 
 # Copy source and build
 COPY server/*.ts ./
 COPY types.ts ../types.ts
-RUN npm run build
+RUN npm run build && ls -la && ls -la dist
 
 # Prune devDependencies for production
 RUN npm prune --omit=dev
