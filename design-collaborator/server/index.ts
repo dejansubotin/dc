@@ -6,7 +6,6 @@ import dotenv from 'dotenv';
 import path from 'path';
 
 // Fix: Import fileURLToPath to resolve __dirname in ES Modules.
-import { fileURLToPath } from 'url';
 
 import { initializeDb, getSessionById, saveSession, findOrCreateUser, findUserByEmail, getUserSessions } from './db';
 import { sendNewCommentEmail } from './email';
@@ -15,9 +14,7 @@ import type { Session, Annotation, Comment, User } from '../types';
 dotenv.config();
 initializeDb();
 
-// Fix: Define __dirname for ES module scope.
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
+// Using CommonJS compilation; __dirname is available after build.
 
 const app = express();
 const server = http.createServer(app);
