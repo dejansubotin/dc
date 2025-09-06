@@ -1,7 +1,7 @@
 # Backend (Node.js + TypeScript)
 FROM node:18-bullseye-slim AS builder
 
-WORKDIR /app
+WORKDIR /app/server
 
 # Ensure native modules like better-sqlite3 can build if prebuilds are unavailable
 RUN apt-get update && apt-get install -y python3 g++ make && rm -rf /var/lib/apt/lists/*
@@ -19,12 +19,12 @@ RUN npm run build
 RUN npm prune --omit=dev
 
 FROM node:18-bullseye-slim AS runner
-WORKDIR /app
+WORKDIR /app/server
 
 # Copy built app and production node_modules
-COPY --from=builder /app/dist ./dist
-COPY --from=builder /app/node_modules ./node_modules
-COPY --from=builder /app/package.json ./package.json
+COPY --from=builder /app/server/dist ./dist
+COPY --from=builder /app/server/node_modules ./node_modules
+COPY --from=builder /app/server/package.json ./package.json
 
 # The DB file will be created at runtime in WORKDIR (/app)
 ENV NODE_ENV=production
