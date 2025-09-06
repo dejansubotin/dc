@@ -10,6 +10,7 @@ export interface Comment {
   author: string; // user's displayName
   text: string;
   timestamp: number;
+  parentId?: number; // optional parent comment id for replies
 }
 
 export interface Annotation {
@@ -37,4 +38,13 @@ export interface Session {
   password?: string;
   collaboratorIds: string[]; // array of user emails
   createdAt: number;
+  history?: HistoryEvent[];
+}
+
+export interface HistoryEvent {
+  id: number; // epoch ms unique enough
+  type: 'session_created' | 'user_joined' | 'password_set' | 'password_removed' | 'annotation_added' | 'annotation_deleted' | 'annotation_solved' | 'annotation_reopened' | 'comment_added';
+  actor?: string; // email of user performing action
+  message: string;
+  timestamp: number;
 }

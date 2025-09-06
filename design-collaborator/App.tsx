@@ -6,6 +6,7 @@ import CommentSidebar from './components/CommentSidebar';
 import ConfirmationModal from './components/ConfirmationModal';
 import LoginModal from './components/LoginModal';
 import ShareModal from './components/ShareModal';
+import HistoryModal from './components/HistoryModal';
 import SessionHistory from './components/SessionHistory';
 import type { Annotation, SelectionRectangle, User, Session, Comment } from './types';
 import * as api from './services/api';
@@ -35,6 +36,7 @@ const App: React.FC = () => {
   // --- Other Modals State ---
   const [deleteModalState, setDeleteModalState] = useState({ isOpen: false, annotationId: null as number | null });
   const [shareModalOpen, setShareModalOpen] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
 
   // --- Initialization and Socket Effect ---
   useEffect(() => {
@@ -170,7 +172,7 @@ const App: React.FC = () => {
     setActiveAnnotationId(newAnnotation.id);
   }, []);
 
-  const handleAddComment = useCallback(async (annotationId: number, commentText: string) => {
+  const handleAddComment = useCallback(async (annotationId: number, commentText: string, parentId?: number) => {
     if (!currentUser || !currentSession) return;
     
     if (pendingAnnotation && pendingAnnotation.id === annotationId) {
@@ -180,13 +182,14 @@ const App: React.FC = () => {
           userId: currentUser.email,
           author: currentUser.displayName,
           text: commentText,
-          timestamp: Date.now()
+          timestamp: Date.now(),
+          parentId: undefined
       }]};
       await api.addAnnotation(currentSession.id, newAnnotationWithComment);
       setPendingAnnotation(null);
       setActiveAnnotationId(newAnnotationWithComment.id);
     } else {
-      await api.addComment(currentSession.id, annotationId, currentUser.email, commentText);
+      await api.addComment(currentSession.id, annotationId, currentUser.email, commentText, parentId);
     }
   }, [pendingAnnotation, currentSession, currentUser]);
   
@@ -249,13 +252,32 @@ const App: React.FC = () => {
     <>
       <div className="min-h-screen bg-gray-900 text-gray-200 flex flex-col font-sans">
         <header className="p-4 bg-gray-800/50 backdrop-blur-sm border-b border-gray-700 flex justify-between items-center z-20 shrink-0">
-          <h1 className="text-2xl font-bold text-cyan-400">Design Collaborator</h1>
+          <div>
+            <h1 className="text-2xl font-bold text-cyan-400">Design Collaborator</h1>
+            {currentSession && (
+              <div className="mt-1 text-sm text-gray-300 flex gap-4">
+                <span>
+                  Annotations: <span className="font-semibold text-white">{currentSession.annotations.length}</span>
+                </span>
+                <span>
+                  Comments: <span className="font-semibold text-white">{currentSession.annotations.reduce((sum, a) => sum + a.comments.length, 0)}</span>
+                </span>
+              </div>
+            )}
+          </div>
           <div className="flex items-center gap-4">
             {currentUser && <span className="text-gray-300">Welcome, <span className="font-bold text-cyan-400">{currentUser.displayName}</span>!</span>}
-            {currentSession && currentUser?.email === currentSession.ownerId && (
-              <button onClick={() => setShareModalOpen(true)} className="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white font-semibold rounded-lg shadow-md transition-colors duration-300">
-                Share Session
-              </button>
+            {currentSession && (
+              <>
+                {currentUser?.email === currentSession.ownerId && (
+                  <button onClick={() => setShareModalOpen(true)} className="px-4 py-2 bg-cyan-600 hover:bg-cyan-700 text-white font-semibold rounded-lg shadow-md transition-colors duration-300">
+                    Share Session
+                  </button>
+                )}
+                <button onClick={() => setHistoryOpen(true)} className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white font-semibold rounded-lg shadow-md transition-colors duration-300">
+                  History
+                </button>
+              </>
             )}
             {currentUser && !currentSession && (
               <button onClick={resetProject} className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white font-semibold rounded-lg shadow-md transition-colors duration-300">
@@ -313,6 +335,13 @@ const App: React.FC = () => {
         onSetPassword={handleSetPassword}
         session={currentSession}
       />}
+      {currentSession && (
+        <HistoryModal
+          isOpen={historyOpen}
+          onClose={() => setHistoryOpen(false)}
+          events={currentSession.history || []}
+        />
+      )}
       <ConfirmationModal
         isOpen={deleteModalState.isOpen}
         onClose={cancelDelete}

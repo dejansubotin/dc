@@ -21,9 +21,19 @@ export function initializeDb() {
       password TEXT,
       collaboratorIds TEXT NOT NULL, -- JSON blob
       createdAt INTEGER NOT NULL,
+      history TEXT, -- JSON blob of events
       FOREIGN KEY (ownerId) REFERENCES users(email)
     );
   `);
+  // Best-effort migration for existing DBs: add history column if missing
+  try {
+    const columns = db.prepare(`PRAGMA table_info(sessions)`).all() as { name: string }[];
+    if (!columns.find(c => c.name === 'history')) {
+      db.prepare(`ALTER TABLE sessions ADD COLUMN history TEXT`).run();
+    }
+  } catch (e) {
+    // ignore
+  }
   console.log("Database initialized successfully.");
 }
 
@@ -52,6 +62,7 @@ const rowToSession = (row: any): Session | null => {
         ...row,
         annotations: JSON.parse(row.annotations),
         collaboratorIds: JSON.parse(row.collaboratorIds),
+        history: row.history ? JSON.parse(row.history) : [],
     };
 };
 
@@ -79,17 +90,18 @@ export const saveSession = (session: Session) => {
     const existing = db.prepare('SELECT id FROM sessions WHERE id = ?').get(session.id);
     const annotationsJson = JSON.stringify(session.annotations);
     const collaboratorIdsJson = JSON.stringify(session.collaboratorIds);
+    const historyJson = JSON.stringify(session.history || []);
     
     if (existing) {
         db.prepare(`
             UPDATE sessions
-            SET ownerId = ?, imageUrl = ?, annotations = ?, password = ?, collaboratorIds = ?, createdAt = ?
+            SET ownerId = ?, imageUrl = ?, annotations = ?, password = ?, collaboratorIds = ?, createdAt = ?, history = ?
             WHERE id = ?
-        `).run(session.ownerId, session.imageUrl, annotationsJson, session.password, collaboratorIdsJson, session.createdAt, session.id);
+        `).run(session.ownerId, session.imageUrl, annotationsJson, session.password, collaboratorIdsJson, session.createdAt, historyJson, session.id);
     } else {
         db.prepare(`
-            INSERT INTO sessions (id, ownerId, imageUrl, annotations, password, collaboratorIds, createdAt)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-        `).run(session.id, session.ownerId, session.imageUrl, annotationsJson, session.password, collaboratorIdsJson, session.createdAt);
+            INSERT INTO sessions (id, ownerId, imageUrl, annotations, password, collaboratorIds, createdAt, history)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(session.id, session.ownerId, session.imageUrl, annotationsJson, session.password, collaboratorIdsJson, session.createdAt, historyJson);
     }
 };

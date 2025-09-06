@@ -84,19 +84,21 @@ export const joinSession = (sessionId: string, email: string, displayName: strin
 
 // Fix: Explicitly type the response handling to resolve promise type mismatch.
 export const setSessionPassword = (sessionId: string, password?: string): Promise<Session> => {
+    const actor = getLocalUser()?.email;
     return fetch(`${API_BASE_URL}/sessions/${sessionId}/password`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ password }),
+        body: JSON.stringify({ password, actor }),
     }).then(response => handleResponse<Session>(response));
 };
 
 // Fix: Explicitly type the response handling to resolve promise type mismatch.
 export const addAnnotation = (sessionId: string, annotation: Annotation): Promise<Session> => {
+    const actor = getLocalUser()?.email;
     return fetch(`${API_BASE_URL}/sessions/${sessionId}/annotations`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ annotation }),
+        body: JSON.stringify({ annotation, actor }),
     }).then(response => handleResponse<Session>(response));
 };
 
@@ -104,6 +106,8 @@ export const addAnnotation = (sessionId: string, annotation: Annotation): Promis
 export const deleteAnnotation = (sessionId: string, annotationId: number): Promise<Session> => {
     return fetch(`${API_BASE_URL}/sessions/${sessionId}/annotations/${annotationId}`, {
         method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ actor: getLocalUser()?.email }),
     }).then(response => handleResponse<Session>(response));
 };
 
@@ -112,16 +116,16 @@ export const toggleAnnotationSolve = (sessionId: string, annotationId: number, i
     return fetch(`${API_BASE_URL}/sessions/${sessionId}/annotations/${annotationId}/solve`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ isSolved }),
+        body: JSON.stringify({ isSolved, actor: getLocalUser()?.email }),
     }).then(response => handleResponse<Session>(response));
 };
 
 // Fix: Explicitly type the response handling to resolve promise type mismatch.
-export const addComment = (sessionId: string, annotationId: number, userEmail: string, text: string): Promise<Session> => {
+export const addComment = (sessionId: string, annotationId: number, userEmail: string, text: string, parentId?: number): Promise<Session> => {
     return fetch(`${API_BASE_URL}/sessions/${sessionId}/annotations/${annotationId}/comments`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ userEmail, text }),
+        body: JSON.stringify({ userEmail, text, parentId }),
     }).then(response => handleResponse<Session>(response));
 };
 

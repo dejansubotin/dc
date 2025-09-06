@@ -1,13 +1,14 @@
 
 import React, { useState, useEffect } from 'react';
 import type { Annotation, User } from '../types';
+import { getUserColor } from '../services/storage';
 
 interface CommentSidebarProps {
   currentUser: User | null;
   annotations: Annotation[];
   pendingAnnotation: Annotation | null;
   activeAnnotationId: number | null;
-  onAddComment: (annotationId: number, commentText: string) => void;
+  onAddComment: (annotationId: number, commentText: string, parentId?: number) => void;
   onUpdateComment: (annotationId: number, commentId: number, newText: string) => void;
   onDeleteComment: (annotationId: number, commentId: number) => void;
   onCancelPending: () => void;
@@ -58,6 +59,8 @@ const CommentSidebar: React.FC<CommentSidebarProps> = ({
 }) => {
   const [newComment, setNewComment] = useState('');
   const [editingComment, setEditingComment] = useState<{ id: number; text: string } | null>(null);
+  const [replyTo, setReplyTo] = useState<number | null>(null);
+  const [replyText, setReplyText] = useState('');
 
   const activeAnnotation = 
     (activeAnnotationId && pendingAnnotation?.id === activeAnnotationId ? pendingAnnotation : null) || 
@@ -69,6 +72,8 @@ const CommentSidebar: React.FC<CommentSidebarProps> = ({
   useEffect(() => {
     setNewComment('');
     setEditingComment(null);
+    setReplyTo(null);
+    setReplyText('');
   }, [activeAnnotationId]);
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -91,6 +96,57 @@ const CommentSidebar: React.FC<CommentSidebarProps> = ({
       onUpdateComment(activeAnnotationId, editingComment.id, editingComment.text.trim());
       setEditingComment(null);
     }
+  };
+
+  const handleSubmitReply = (parentId: number) => {
+    if (!replyText.trim() || !activeAnnotationId) return;
+    onAddComment(activeAnnotationId, replyText.trim(), parentId);
+    setReplyText('');
+    setReplyTo(null);
+  };
+
+  const renderComment = (comment: Annotation['comments'][number], isReply = false) => {
+    const canModify = currentUser?.email === comment.userId;
+    const containerCls = isReply ? 'ml-6 bg-gray-700/30' : 'bg-gray-700/50';
+    return (
+      <div key={comment.id} className={`${containerCls} p-3 rounded-lg group relative`}> 
+        {canModify && !isSolved && (
+          <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
+            <button onClick={() => setEditingComment({ id: comment.id, text: comment.text })} className="p-1.5 rounded-full bg-gray-600 text-gray-300 hover:bg-yellow-500 hover:text-white" aria-label="Edit comment"><EditIcon /></button>
+            <button onClick={() => activeAnnotationId && onDeleteComment(activeAnnotationId, comment.id)} className="p-1.5 rounded-full bg-gray-600 text-gray-300 hover:bg-red-500 hover:text-white" aria-label="Delete comment"><DeleteIcon /></button>
+          </div>
+        )}
+        <div className="flex items-baseline gap-2 mb-1">
+          <p className="font-bold text-sm" style={{ color: getUserColor(comment.userId) }}>{comment.author}</p>
+          <p className="text-xs text-gray-500">{new Date(comment.timestamp).toLocaleString()}</p>
+        </div>
+        {editingComment?.id === comment.id && !isSolved ? (
+          <>
+            <textarea value={editingComment.text} onChange={(e) => setEditingComment({ ...editingComment, text: e.target.value })} className="w-full p-2 bg-gray-900 border border-gray-600 rounded-md focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none transition" rows={3} autoFocus />
+            <div className="flex items-center justify-end gap-2 mt-2">
+              <button onClick={() => setEditingComment(null)} className="px-3 py-1 bg-gray-600 text-white text-sm font-semibold rounded-md hover:bg-gray-500 transition-colors">Cancel</button>
+              <button onClick={handleSaveEdit} disabled={!editingComment.text.trim()} className="px-3 py-1 bg-cyan-600 text-white text-sm font-semibold rounded-md hover:bg-cyan-700 disabled:bg-gray-500 transition-colors">Save</button>
+            </div>
+          </>
+        ) : (
+          <>
+            <p className="text-gray-300 whitespace-pre-wrap pr-16">{comment.text}</p>
+            {!isSolved && (
+              <button onClick={() => setReplyTo(comment.id)} className="mt-2 text-xs text-cyan-400 hover:text-cyan-300">Reply</button>
+            )}
+            {replyTo === comment.id && (
+              <div className="mt-2">
+                <textarea value={replyText} onChange={(e) => setReplyText(e.target.value)} rows={2} className="w-full p-2 bg-gray-900 border border-gray-600 rounded-md focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none transition" placeholder="Write a reply..." />
+                <div className="flex gap-2 mt-2">
+                  <button onClick={() => handleSubmitReply(comment.id)} disabled={!replyText.trim()} className="px-3 py-1 bg-cyan-600 text-white text-sm font-semibold rounded-md hover:bg-cyan-700 disabled:bg-gray-500">Reply</button>
+                  <button onClick={() => { setReplyTo(null); setReplyText(''); }} className="px-3 py-1 bg-gray-600 text-white text-sm font-semibold rounded-md hover:bg-gray-500">Cancel</button>
+                </div>
+              </div>
+            )}
+          </>
+        )}
+      </div>
+    );
   };
 
   return (
@@ -132,63 +188,25 @@ const CommentSidebar: React.FC<CommentSidebarProps> = ({
               </p>
             )}
             <div className="space-y-4">
-              {activeAnnotation.comments.map((comment) => {
-                 const canModify = currentUser?.email === comment.userId;
-                 return editingComment?.id === comment.id && !isSolved ? (
-                  // EDITING VIEW
-                  <div key={comment.id} className="bg-gray-700 p-3 rounded-lg">
-                    <textarea
-                      value={editingComment.text}
-                      onChange={(e) => setEditingComment({ ...editingComment, text: e.target.value })}
-                      className="w-full p-2 bg-gray-900 border border-gray-600 rounded-md focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none transition"
-                      rows={3}
-                      autoFocus
-                    />
-                    <div className="flex items-center justify-end gap-2 mt-2">
-                      <button 
-                        onClick={() => setEditingComment(null)}
-                        className="px-3 py-1 bg-gray-600 text-white text-sm font-semibold rounded-md hover:bg-gray-500 transition-colors"
-                      >
-                        Cancel
-                      </button>
-                      <button 
-                        onClick={handleSaveEdit}
-                        disabled={!editingComment.text.trim()}
-                        className="px-3 py-1 bg-cyan-600 text-white text-sm font-semibold rounded-md hover:bg-cyan-700 disabled:bg-gray-500 transition-colors"
-                      >
-                        Save
-                      </button>
-                    </div>
+              {(() => {
+                const roots = activeAnnotation.comments.filter(c => !('parentId' in c) || c.parentId === undefined);
+                const byParent: Record<number, typeof activeAnnotation.comments> = {} as any;
+                activeAnnotation.comments.forEach(c => {
+                  if (c.parentId !== undefined) {
+                    if (!byParent[c.parentId]) byParent[c.parentId] = [] as any;
+                    byParent[c.parentId].push(c);
+                  }
+                });
+                const ordered = roots.sort((a,b) => a.timestamp - b.timestamp);
+                return ordered.map(root => (
+                  <div key={root.id} className="space-y-3">
+                    {renderComment(root, false)}
+                    {(byParent[root.id] || []).sort((a,b)=>a.timestamp-b.timestamp).map(child => (
+                      <div key={child.id}>{renderComment(child, true)}</div>
+                    ))}
                   </div>
-                ) : (
-                  // DISPLAY VIEW
-                  <div key={comment.id} className="bg-gray-700/50 p-3 rounded-lg group relative">
-                     {canModify && !isSolved && (
-                        <div className="absolute top-2 right-2 flex gap-2 opacity-0 group-hover:opacity-100 transition-opacity">
-                            <button
-                            onClick={() => setEditingComment({ id: comment.id, text: comment.text })}
-                            className="p-1.5 rounded-full bg-gray-600 text-gray-300 hover:bg-yellow-500 hover:text-white"
-                            aria-label="Edit comment"
-                            >
-                            <EditIcon />
-                            </button>
-                            <button 
-                            onClick={() => activeAnnotationId && onDeleteComment(activeAnnotationId, comment.id)}
-                            className="p-1.5 rounded-full bg-gray-600 text-gray-300 hover:bg-red-500 hover:text-white"
-                            aria-label="Delete comment"
-                            >
-                            <DeleteIcon />
-                            </button>
-                        </div>
-                     )}
-                    <div className="flex items-baseline gap-2 mb-1">
-                        <p className="font-bold text-sm text-yellow-400">{comment.author}</p>
-                        <p className="text-xs text-gray-500">{new Date(comment.timestamp).toLocaleString()}</p>
-                    </div>
-                    <p className="text-gray-300 whitespace-pre-wrap pr-16">{comment.text}</p>
-                  </div>
-                )
-              })}
+                ));
+              })()}
             </div>
           </div>
         )}

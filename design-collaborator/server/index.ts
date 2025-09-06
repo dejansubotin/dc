@@ -9,7 +9,7 @@ import path from 'path';
 
 import { initializeDb, getSessionById, saveSession, findOrCreateUser, findUserByEmail, getUserSessions } from './db';
 import { sendNewCommentEmail } from './email';
-import type { Session, Annotation, Comment, User } from '../types';
+import type { Session, Annotation, Comment, User, HistoryEvent } from '../types';
 
 dotenv.config();
 initializeDb();
@@ -49,6 +49,13 @@ const broadcastSessionUpdate = (sessionId: string, session: Session) => {
     io.to(sessionId).emit('session_updated', session);
 };
 
+const appendHistory = (session: Session, event: HistoryEvent) => {
+    const list = session.history || [];
+    list.push(event);
+    // Optional: keep last 200 events
+    session.history = list.slice(-200);
+};
+
 // --- API Endpoints ---
 const apiRouter = express.Router();
 
@@ -82,7 +89,9 @@ apiRouter.post('/sessions', (req, res) => {
         annotations: [],
         collaboratorIds: [ownerEmail],
         createdAt: Date.now(),
+        history: [],
     };
+    appendHistory(newSession, { id: Date.now(), type: 'session_created', actor: ownerEmail, message: 'Session created', timestamp: Date.now() });
     saveSession(newSession);
     res.status(201).json(newSession);
 });
@@ -108,6 +117,8 @@ apiRouter.post('/sessions/:id/collaborators', (req, res) => {
         session.collaboratorIds.push(email);
         saveSession(session);
     }
+    appendHistory(session, { id: Date.now(), type: 'user_joined', actor: email, message: `${displayName} joined`, timestamp: Date.now() });
+    saveSession(session);
     broadcastSessionUpdate(session.id, session);
     res.json(session);
 });
@@ -116,6 +127,7 @@ apiRouter.put('/sessions/:id/password', (req, res) => {
     const session = getSessionById(req.params.id);
     if (!session) return res.status(404).json({ error: 'Session not found' });
     session.password = req.body.password || undefined;
+    appendHistory(session, { id: Date.now(), type: session.password ? 'password_set' : 'password_removed', actor: req.body.actor || undefined, message: session.password ? 'Password set' : 'Password removed', timestamp: Date.now() });
     saveSession(session);
     broadcastSessionUpdate(session.id, session);
     res.json(session);
@@ -127,6 +139,7 @@ apiRouter.post('/sessions/:id/annotations', (req, res) => {
     if (!session) return res.status(404).json({ error: 'Session not found' });
     const { annotation } = req.body;
     session.annotations.push(annotation);
+    appendHistory(session, { id: Date.now(), type: 'annotation_added', actor: req.body.actor || undefined, message: `Annotation ${annotation.id} added`, timestamp: Date.now() });
     saveSession(session);
     broadcastSessionUpdate(session.id, session);
     res.status(201).json(session);
@@ -136,6 +149,7 @@ apiRouter.delete('/sessions/:id/annotations/:annoId', (req, res) => {
     const session = getSessionById(req.params.id);
     if (!session) return res.status(404).json({ error: 'Session not found' });
     session.annotations = session.annotations.filter(a => a.id !== parseInt(req.params.annoId));
+    appendHistory(session, { id: Date.now(), type: 'annotation_deleted', actor: req.body.actor || undefined, message: `Annotation ${req.params.annoId} deleted`, timestamp: Date.now() });
     saveSession(session);
     broadcastSessionUpdate(session.id, session);
     res.json(session);
@@ -148,6 +162,7 @@ apiRouter.put('/sessions/:id/annotations/:annoId/solve', (req, res) => {
     session.annotations = session.annotations.map(a => 
         a.id === parseInt(req.params.annoId) ? { ...a, isSolved } : a
     );
+    appendHistory(session, { id: Date.now(), type: isSolved ? 'annotation_solved' : 'annotation_reopened', actor: req.body.actor || undefined, message: `Annotation ${req.params.annoId} ${isSolved ? 'solved' : 'reopened'}`, timestamp: Date.now() });
     saveSession(session);
     broadcastSessionUpdate(session.id, session);
     res.json(session);
@@ -157,7 +172,7 @@ apiRouter.post('/sessions/:id/annotations/:annoId/comments', async (req, res) =>
     const session = getSessionById(req.params.id);
     if (!session) return res.status(404).json({ error: 'Session not found' });
     
-    const { userEmail, text } = req.body;
+    const { userEmail, text, parentId } = req.body;
     const user = findUserByEmail(userEmail);
     if (!user) return res.status(404).json({ error: 'User not found' });
 
@@ -166,7 +181,8 @@ apiRouter.post('/sessions/:id/annotations/:annoId/comments', async (req, res) =>
         userId: user.email,
         author: user.displayName,
         text,
-        timestamp: Date.now()
+        timestamp: Date.now(),
+        parentId: typeof parentId === 'number' ? parentId : undefined,
     };
 
     let annotationFound = false;
@@ -180,6 +196,7 @@ apiRouter.post('/sessions/:id/annotations/:annoId/comments', async (req, res) =>
 
     if (!annotationFound) return res.status(404).json({ error: 'Annotation not found' });
 
+    appendHistory(session, { id: Date.now(), type: 'comment_added', actor: user.email, message: parentId ? `${user.displayName} replied to comment ${parentId}` : `${user.displayName} commented on ${req.params.annoId}`, timestamp: Date.now() });
     saveSession(session);
     broadcastSessionUpdate(session.id, session);
 
