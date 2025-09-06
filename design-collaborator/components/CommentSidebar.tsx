@@ -132,7 +132,9 @@ const CommentSidebar: React.FC<CommentSidebarProps> = ({
           <>
             <p className="text-gray-300 whitespace-pre-wrap pr-16">{comment.text}</p>
             {!isSolved && (
-              <button onClick={() => setReplyTo(comment.id)} className="mt-2 text-xs text-cyan-400 hover:text-cyan-300">Reply</button>
+              <div className="mt-2 flex justify-end">
+                <button onClick={() => setReplyTo(comment.id)} className="text-xs text-cyan-400 hover:text-cyan-300">Reply</button>
+              </div>
             )}
             {replyTo === comment.id && (
               <div className="mt-2">

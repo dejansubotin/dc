@@ -27,6 +27,8 @@ const App: React.FC = () => {
     isOpen: boolean;
     isJoining: boolean;
     callback: (user?: User) => void;
+    message?: string;
+    errorMessage?: string;
   }>({ isOpen: false, isJoining: false, callback: () => {} });
 
   // --- Editor State ---
@@ -56,16 +58,20 @@ const App: React.FC = () => {
       }
 
       if (sessionId) {
+        // Require user details before accessing a shared session
+        if (!user) {
+          setLoginModalState({ isOpen: true, isJoining: true, message: 'Access required. Please enter your name and email (and password if required) to join this session.', callback: () => window.location.reload() });
+          setIsLoading(false);
+          return;
+        }
+        // Strict mode: must be member to read; always try to join first
         try {
+          await api.joinSession(sessionId, user.email, user.displayName);
           const session = await api.getSession(sessionId);
-          if (session.password && (!user || (session.ownerId !== user.email && !session.collaboratorIds.includes(user.email)))) {
-             setLoginModalState({ isOpen: true, isJoining: true, callback: () => window.location.reload() });
-          } else {
-             setCurrentSession(session);
-          }
+          setCurrentSession(session);
         } catch (error) {
-          console.error("Session not found or error fetching it.", error);
-          window.history.replaceState({}, '', window.location.pathname);
+          console.error("Join or fetch failed; likely needs password.", error);
+          setLoginModalState({ isOpen: true, isJoining: true, message: 'Access required. This session may be password-protected. Please enter your details to continue.', errorMessage: (error as Error)?.message || 'Authentication required', callback: () => window.location.reload() });
         }
       } else if (!user) {
         setLoginModalState({ isOpen: true, isJoining: false, callback: (newUser) => setCurrentUser(newUser || null) });
@@ -119,7 +125,13 @@ const App: React.FC = () => {
         loginModalState.callback?.(user);
     } catch(error) {
         console.error("Login failed:", error);
-        alert(`Error: ${(error as Error).message}`);
+        setLoginModalState(prev => ({
+          isOpen: true,
+          isJoining: prev.isJoining,
+          message: prev.message || 'Please try again.',
+          errorMessage: (error as Error)?.message || 'Authentication failed',
+          callback: prev.callback || (() => {})
+        }));
     }
   };
 
@@ -327,6 +339,8 @@ const App: React.FC = () => {
       <LoginModal 
         isOpen={loginModalState.isOpen}
         isJoiningWithPassword={loginModalState.isJoining}
+        message={loginModalState.message}
+        externalError={loginModalState.errorMessage}
         onSubmit={handleLogin}
       />
       {currentSession && <ShareModal

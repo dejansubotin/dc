@@ -6,9 +6,11 @@ interface LoginModalProps {
   isJoiningWithPassword?: boolean;
   onSubmit: (displayName: string, email: string, password?: string) => void;
   onClose?: () => void; // Optional: for modals that can be closed
+  message?: string; // Optional notice to show at top
+  externalError?: string; // Server-side error message to display
 }
 
-const LoginModal: React.FC<LoginModalProps> = ({ isOpen, isJoiningWithPassword = false, onSubmit, onClose }) => {
+const LoginModal: React.FC<LoginModalProps> = ({ isOpen, isJoiningWithPassword = false, onSubmit, onClose, message, externalError }) => {
   const [displayName, setDisplayName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -42,7 +44,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, isJoiningWithPassword =
             {isJoiningWithPassword ? 'Join Session' : 'Welcome!'}
           </h2>
           <p className="text-gray-400 mb-6">
-            Please enter your details to continue.
+            {message || 'Please enter your details to continue.'}
           </p>
           
           <div className="space-y-4">
@@ -83,7 +85,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, isJoiningWithPassword =
             )}
           </div>
 
-          {error && <p className="text-red-400 text-sm mt-4">{error}</p>}
+          {(externalError || error) && <p className="text-red-400 text-sm mt-4">{externalError || error}</p>}
           
           <div className="flex justify-end gap-4 mt-8">
             {onClose && (

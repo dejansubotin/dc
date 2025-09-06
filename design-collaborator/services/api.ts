@@ -65,7 +65,10 @@ export const createSession = (ownerEmail: string, imageDataUrl: string): Promise
 
 // Fix: Explicitly type the response handling to resolve promise type mismatch.
 export const getSession = (sessionId: string): Promise<Session> => {
-    return fetch(`${API_BASE_URL}/sessions/${sessionId}`).then(response => handleResponse<Session>(response));
+    const user = getLocalUser();
+    const headers: Record<string, string> = {};
+    if (user?.email) headers['x-user-email'] = user.email;
+    return fetch(`${API_BASE_URL}/sessions/${sessionId}`, { headers }).then(response => handleResponse<Session>(response));
 };
 
 // Fix: Explicitly type the response handling to resolve promise type mismatch.

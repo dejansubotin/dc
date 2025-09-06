@@ -106,11 +106,12 @@ apiRouter.post('/sessions', (req, res) => {
 
 apiRouter.get('/sessions/:id', (req, res) => {
     const session = getSessionById(req.params.id);
-    if (session) {
-        res.json(session);
-    } else {
-        res.status(404).json({ error: 'Session not found' });
-    }
+    if (!session) return res.status(404).json({ error: 'Session not found' });
+    // Require membership (owner or collaborator) to read any session
+    const caller = (req.header('x-user-email') || '').toLowerCase();
+    const isAllowed = caller && (caller === session.ownerId.toLowerCase() || session.collaboratorIds.map(e=>e.toLowerCase()).includes(caller));
+    if (!isAllowed) return res.status(403).json({ error: 'Authentication required' });
+    res.json(session);
 });
 
 apiRouter.post('/sessions/:id/collaborators', (req, res) => {
