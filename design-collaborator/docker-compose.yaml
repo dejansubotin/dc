@@ -18,8 +18,8 @@ services:
     expose:
       - "3000"
     volumes:
-      # Persist the SQLite database file
-      - ./data/collaborator.db:/app/collaborator.db
+      # Persist the SQLite database in a named volume
+      - app-data:/data
 
   frontend:
     build:
@@ -29,3 +29,6 @@ services:
       - "${PUBLIC_PORT:-8081}:80"
     depends_on:
       - server
+
+volumes:
+  app-data:

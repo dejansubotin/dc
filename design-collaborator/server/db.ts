@@ -2,7 +2,7 @@ import Database from 'better-sqlite3';
 import path from 'path';
 import type { Session, Annotation, Comment, User } from '../types';
 
-const DB_PATH = process.env.DB_PATH || '/app/collaborator.db';
+const DB_PATH = process.env.DB_PATH || '/data/collaborator.db';
 const db = new Database(DB_PATH);
 
 // --- Schema Initialization ---
