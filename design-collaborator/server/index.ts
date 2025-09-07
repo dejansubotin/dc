@@ -7,7 +7,7 @@ import path from 'path';
 
 // Fix: Import fileURLToPath to resolve __dirname in ES Modules.
 
-import { initializeDb, getSessionById, saveSession, findOrCreateUser, findUserByEmail, getUserSessions, getInactiveSessions, deleteSessionsByIds, countSessions, countUsers, getActiveCollaboratorEmails, DB_PATH } from './db';
+import { initializeDb, getSessionById, saveSession, findOrCreateUser, findUserByEmail, getUserSessions, getInactiveSessions, getSessionsToDelete, deleteSessionsByIds, countSessions, countUsers, getActiveCollaboratorEmails, DB_PATH } from './db';
 import fs from 'fs';
 import { sendNewCommentEmail } from './email';
 import type { Session, Annotation, Comment, User, HistoryEvent, Collaborator } from '../types';
@@ -476,7 +476,7 @@ server.listen(PORT, () => {
           }
           const t = (s as any).sessionThumbnailUrl; if (t && t.startsWith('/uploads/')) { const p2 = '/data' + t; try { fs.unlinkSync(p2); } catch {} }
         }
-        const removed = deleteSessionsByIds(due.map(s => s.id));
+        const removed = deleteSessionsByIds(due.map((s: { id: string }) => s.id));
         if (removed > 0) console.log(`Deleted ${removed} session(s) scheduled for deletion.`);
       }
     } catch (e) { console.warn('Scheduled deletion cleanup failed:', e); }
