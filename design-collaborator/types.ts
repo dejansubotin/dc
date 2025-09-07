@@ -41,6 +41,7 @@ export interface Session {
   annotations: Annotation[];
   password?: string;
   collaboratorIds: string[]; // array of user emails
+  blockedEmails?: string[]; // removed/banned emails
   createdAt: number;
   lastActivity: number;
   history?: HistoryEvent[];

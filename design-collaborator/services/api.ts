@@ -156,3 +156,11 @@ export const likeComment = (sessionId: string, annotationId: number, commentId: 
     body: JSON.stringify({ userEmail: user?.email, like }),
   }).then(response => handleResponse<Session>(response));
 };
+
+export const removeCollaborator = (sessionId: string, email: string): Promise<Session> => {
+  const user = getLocalUser();
+  return fetch(`${API_BASE_URL}/sessions/${sessionId}/collaborators/${encodeURIComponent(email)}`, {
+    method: 'DELETE',
+    headers: { 'x-user-email': user?.email || '' },
+  }).then(response => handleResponse<Session>(response));
+};

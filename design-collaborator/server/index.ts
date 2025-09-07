@@ -106,6 +106,7 @@ apiRouter.post('/sessions', (req, res) => {
             sessionThumbnailUrl: '',
             annotations: [],
             collaboratorIds: [ownerEmail],
+            blockedEmails: [],
             createdAt: now,
             lastActivity: now as any,
             history: [],
@@ -160,6 +161,8 @@ apiRouter.get('/sessions/:id', (req, res) => {
     if (!session) return res.status(404).json({ error: 'Session not found' });
     // Require membership (owner or collaborator) to read any session
     const caller = (req.header('x-user-email') || '').toLowerCase();
+    const blocked = (session.blockedEmails || []).map(e=>e.toLowerCase());
+    if (blocked.includes(caller)) return res.status(403).json({ error: 'Access revoked' });
     const isAllowed = caller && (caller === session.ownerId.toLowerCase() || session.collaboratorIds.map(e=>e.toLowerCase()).includes(caller));
     if (!isAllowed) return res.status(403).json({ error: 'Authentication required' });
     res.json(enrichSession(session));
@@ -171,6 +174,8 @@ apiRouter.post('/sessions/:id/collaborators', (req, res) => {
     if (!session) return res.status(404).json({ error: 'Session not found' });
     const emailLower = (email || '').toLowerCase();
     const isExisting = session.ownerId.toLowerCase() === emailLower || session.collaboratorIds.map(e => e.toLowerCase()).includes(emailLower);
+    const blocked = (session.blockedEmails || []).map(e=>e.toLowerCase());
+    if (blocked.includes(emailLower)) return res.status(403).json({ error: 'Access revoked' });
     if (session.password && !isExisting) {
         const pwd = (password || '').trim();
         if (session.password !== pwd) {
@@ -183,6 +188,24 @@ apiRouter.post('/sessions/:id/collaborators', (req, res) => {
         saveSession(session);
     }
     appendHistory(session, { id: Date.now(), type: 'user_joined', actor: email, message: `${displayName} joined`, timestamp: Date.now() });
+    (session as any).lastActivity = Date.now();
+    saveSession(session);
+    broadcastSessionUpdate(session.id, session);
+    res.json(enrichSession(session));
+});
+
+// Remove collaborator (owner only)
+apiRouter.delete('/sessions/:id/collaborators/:email', (req, res) => {
+    const session = getSessionById(req.params.id);
+    if (!session) return res.status(404).json({ error: 'Session not found' });
+    const actor = (req.header('x-user-email') || '').toLowerCase();
+    if (actor !== session.ownerId.toLowerCase()) return res.status(403).json({ error: 'Only owner can remove collaborators' });
+    const target = decodeURIComponent(req.params.email || '').toLowerCase();
+    if (!target || target === session.ownerId.toLowerCase()) return res.status(400).json({ error: 'Invalid target' });
+    const before = session.collaboratorIds.length;
+    session.collaboratorIds = session.collaboratorIds.filter(e => e.toLowerCase() !== target);
+    session.blockedEmails = Array.from(new Set([...(session.blockedEmails || []), target]));
+    appendHistory(session, { id: Date.now(), type: 'user_joined', actor: actor, message: `Member removed: ${target}` , timestamp: Date.now() });
     (session as any).lastActivity = Date.now();
     saveSession(session);
     broadcastSessionUpdate(session.id, session);

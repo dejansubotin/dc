@@ -9,6 +9,8 @@ import ShareModal from './components/ShareModal';
 import MySessionsModal from './components/MySessionsModal';
 import HistoryModal from './components/HistoryModal';
 import CreateSessionModal from './components/CreateSessionModal';
+import MembersModal from './components/MembersModal';
+import EditProfileModal from './components/EditProfileModal';
 import SessionHistory from './components/SessionHistory';
 import type { Annotation, SelectionRectangle, User, Session, Comment } from './types';
 import * as api from './services/api';
@@ -46,6 +48,8 @@ const App: React.FC = () => {
   const [createSessionOpen, setCreateSessionOpen] = useState(false);
   const [pendingImageDataUrl, setPendingImageDataUrl] = useState<string | null>(null);
   const [pendingThumbDataUrl, setPendingThumbDataUrl] = useState<string | null>(null);
+  const [membersOpen, setMembersOpen] = useState(false);
+  const [editProfileOpen, setEditProfileOpen] = useState(false);
 
   // --- Initialization and Socket Effect ---
   useEffect(() => {
@@ -317,7 +321,7 @@ const App: React.FC = () => {
       <div className="min-h-screen bg-gray-900 text-gray-200 flex flex-col font-sans">
         <header className="p-4 bg-gray-800/50 backdrop-blur-sm border-b border-gray-700 flex justify-between items-center z-20 shrink-0">
           <div>
-            <h1 className="text-2xl font-bold text-cyan-400">Design Collaborator</h1>
+            <a href="/" className="text-2xl font-bold text-cyan-400 hover:text-cyan-300 transition-colors">Design Collaborator</a>
             {currentSession && (
               <div className="mt-1 text-sm text-gray-300 flex gap-4">
                 <span>
@@ -354,6 +358,9 @@ const App: React.FC = () => {
                     Share Session
                   </button>
                 )}
+                <button onClick={() => setMembersOpen(true)} className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white font-semibold rounded-lg shadow-md transition-colors duration-300">
+                  Members
+                </button>
                 <button onClick={() => setHistoryOpen(true)} className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white font-semibold rounded-lg shadow-md transition-colors duration-300">
                   History
                 </button>
@@ -365,9 +372,14 @@ const App: React.FC = () => {
               </button>
             )}
             {currentUser && !currentSession && (
-              <button onClick={resetProject} className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white font-semibold rounded-lg shadow-md transition-colors duration-300">
-                New Session
-              </button>
+              <>
+                <button onClick={resetProject} className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white font-semibold rounded-lg shadow-md transition-colors duration-300">
+                  New Session
+                </button>
+                <button onClick={() => setEditProfileOpen(true)} className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white font-semibold rounded-lg shadow-md transition-colors duration-300">
+                  Edit Profile
+                </button>
+              </>
             )}
           </div>
         </header>
@@ -416,6 +428,9 @@ const App: React.FC = () => {
         isJoiningWithPassword={!!loginModalState.requirePassword}
         message={loginModalState.message}
         externalError={loginModalState.errorMessage}
+        defaultDisplayName={currentUser?.displayName}
+        defaultEmail={currentUser?.email}
+        disableIdentityInputs={!!currentUser}
         onSubmit={handleLogin}
       />
       {currentSession && <ShareModal
@@ -443,6 +458,43 @@ const App: React.FC = () => {
           isOpen={createSessionOpen}
           onClose={() => { setCreateSessionOpen(false); setPendingImageDataUrl(null); }}
           onCreate={handleConfirmCreateSession}
+        />
+      )}
+      {currentSession && (
+        <MembersModal
+          isOpen={membersOpen}
+          onClose={() => setMembersOpen(false)}
+          session={currentSession}
+          currentUser={currentUser}
+          onRemove={async (email) => {
+            if (!currentSession) return;
+            if (!confirm(`Remove ${email}? They will lose access.`)) return;
+            try {
+              const updated = await api.removeCollaborator(currentSession.id, email);
+              setCurrentSession(updated);
+            } catch (e) {
+              alert((e as Error).message);
+            }
+          }}
+        />
+      )}
+      {currentUser && (
+        <EditProfileModal
+          isOpen={editProfileOpen}
+          initialUser={currentUser}
+          onClose={() => setEditProfileOpen(false)}
+          onSave={async (u) => {
+            try {
+              const updated = await api.createUser(u.email, u.displayName);
+              api.setLocalUser(updated);
+              setCurrentUser(updated);
+              setEditProfileOpen(false);
+              // refresh sessions list
+              try { setUserSessions(await api.getUserSessions(updated.email)); } catch {}
+            } catch (e) {
+              alert((e as Error).message);
+            }
+          }}
         />
       )}
       <ConfirmationModal

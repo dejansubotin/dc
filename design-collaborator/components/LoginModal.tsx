@@ -8,11 +8,14 @@ interface LoginModalProps {
   onClose?: () => void; // Optional: for modals that can be closed
   message?: string; // Optional notice to show at top
   externalError?: string; // Server-side error message to display
+  defaultDisplayName?: string;
+  defaultEmail?: string;
+  disableIdentityInputs?: boolean;
 }
 
-const LoginModal: React.FC<LoginModalProps> = ({ isOpen, isJoiningWithPassword = false, onSubmit, onClose, message, externalError }) => {
-  const [displayName, setDisplayName] = useState('');
-  const [email, setEmail] = useState('');
+const LoginModal: React.FC<LoginModalProps> = ({ isOpen, isJoiningWithPassword = false, onSubmit, onClose, message, externalError, defaultDisplayName, defaultEmail, disableIdentityInputs }) => {
+  const [displayName, setDisplayName] = useState(defaultDisplayName || '');
+  const [email, setEmail] = useState(defaultEmail || '');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
 
@@ -20,7 +23,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, isJoiningWithPassword =
 
   const handleSubmit = (e: FormEvent) => {
     e.preventDefault();
-    if (!displayName.trim() || !email.trim()) {
+    if (!disableIdentityInputs && (!displayName.trim() || !email.trim())) {
       setError('Display Name and Email are required.');
       return;
     }
@@ -29,7 +32,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, isJoiningWithPassword =
       return;
     }
     setError('');
-    onSubmit(displayName.trim(), email.trim(), password);
+    onSubmit((disableIdentityInputs ? (defaultDisplayName || '') : displayName.trim()), (disableIdentityInputs ? (defaultEmail || '') : email.trim()), password);
   };
 
   return (
@@ -55,8 +58,10 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, isJoiningWithPassword =
                 type="text"
                 value={displayName}
                 onChange={(e) => setDisplayName(e.target.value)}
-                className="w-full p-2 bg-gray-900 border border-gray-600 rounded-md focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none transition"
+                className={`w-full p-2 border rounded-md focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none transition ${disableIdentityInputs ? 'bg-gray-800 border-gray-700 text-gray-400 cursor-not-allowed' : 'bg-gray-900 border-gray-600 text-gray-200'}`}
                 required
+                disabled={!!disableIdentityInputs}
+                readOnly={!!disableIdentityInputs}
               />
             </div>
             <div>
@@ -66,8 +71,10 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, isJoiningWithPassword =
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
-                className="w-full p-2 bg-gray-900 border border-gray-600 rounded-md focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none transition"
+                className={`w-full p-2 border rounded-md focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 outline-none transition ${disableIdentityInputs ? 'bg-gray-800 border-gray-700 text-gray-400 cursor-not-allowed' : 'bg-gray-900 border-gray-600 text-gray-200'}`}
                 required
+                disabled={!!disableIdentityInputs}
+                readOnly={!!disableIdentityInputs}
               />
             </div>
             {isJoiningWithPassword && (

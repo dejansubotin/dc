@@ -25,6 +25,7 @@ export function initializeDb() {
       annotations TEXT NOT NULL, -- JSON blob
       password TEXT,
       collaboratorIds TEXT NOT NULL, -- JSON blob
+      blockedEmails TEXT, -- JSON blob
       createdAt INTEGER NOT NULL,
       lastActivity INTEGER NOT NULL,
       history TEXT, -- JSON blob of events
@@ -45,6 +46,9 @@ export function initializeDb() {
     }
     if (!columns.find(c => c.name === 'sessionThumbnailUrl')) {
       db.prepare(`ALTER TABLE sessions ADD COLUMN sessionThumbnailUrl TEXT`).run();
+    }
+    if (!columns.find(c => c.name === 'blockedEmails')) {
+      db.prepare(`ALTER TABLE sessions ADD COLUMN blockedEmails TEXT`).run();
     }
     if (!columns.find(c => c.name === 'lastActivity')) {
       db.prepare(`ALTER TABLE sessions ADD COLUMN lastActivity INTEGER`).run();
@@ -85,6 +89,7 @@ const rowToSession = (row: any): Session | null => {
         sessionThumbnailUrl: row.sessionThumbnailUrl,
         annotations: JSON.parse(row.annotations),
         collaboratorIds: JSON.parse(row.collaboratorIds),
+        blockedEmails: row.blockedEmails ? JSON.parse(row.blockedEmails) : [],
         lastActivity: row.lastActivity ?? row.createdAt,
         history: row.history ? JSON.parse(row.history) : [],
     };
@@ -113,19 +118,20 @@ export const saveSession = (session: Session) => {
     const existing = db.prepare('SELECT id FROM sessions WHERE id = ?').get(session.id);
     const annotationsJson = JSON.stringify(session.annotations);
     const collaboratorIdsJson = JSON.stringify(session.collaboratorIds);
+    const blockedEmailsJson = JSON.stringify(session.blockedEmails || []);
     const historyJson = JSON.stringify(session.history || []);
     
     if (existing) {
         db.prepare(`
             UPDATE sessions
-            SET ownerId = ?, sessionName = ?, sessionDescription = ?, imageUrl = ?, sessionThumbnailUrl = ?, annotations = ?, password = ?, collaboratorIds = ?, createdAt = ?, lastActivity = ?, history = ?
+            SET ownerId = ?, sessionName = ?, sessionDescription = ?, imageUrl = ?, sessionThumbnailUrl = ?, annotations = ?, password = ?, collaboratorIds = ?, blockedEmails = ?, createdAt = ?, lastActivity = ?, history = ?
             WHERE id = ?
-        `).run(session.ownerId, session.sessionName, session.sessionDescription, session.imageUrl, session.sessionThumbnailUrl, annotationsJson, session.password, collaboratorIdsJson, session.createdAt, (session as any).lastActivity ?? session.createdAt, historyJson, session.id);
+        `).run(session.ownerId, session.sessionName, session.sessionDescription, session.imageUrl, session.sessionThumbnailUrl, annotationsJson, session.password, collaboratorIdsJson, blockedEmailsJson, session.createdAt, (session as any).lastActivity ?? session.createdAt, historyJson, session.id);
     } else {
         db.prepare(`
-            INSERT INTO sessions (id, ownerId, sessionName, sessionDescription, imageUrl, sessionThumbnailUrl, annotations, password, collaboratorIds, createdAt, lastActivity, history)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(session.id, session.ownerId, session.sessionName, session.sessionDescription, session.imageUrl, session.sessionThumbnailUrl, annotationsJson, session.password, collaboratorIdsJson, session.createdAt, (session as any).lastActivity ?? session.createdAt, historyJson);
+            INSERT INTO sessions (id, ownerId, sessionName, sessionDescription, imageUrl, sessionThumbnailUrl, annotations, password, collaboratorIds, blockedEmails, createdAt, lastActivity, history)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(session.id, session.ownerId, session.sessionName, session.sessionDescription, session.imageUrl, session.sessionThumbnailUrl, annotationsJson, session.password, collaboratorIdsJson, blockedEmailsJson, session.createdAt, (session as any).lastActivity ?? session.createdAt, historyJson);
     }
 };
 
