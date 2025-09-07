@@ -164,3 +164,19 @@ export const removeCollaborator = (sessionId: string, email: string): Promise<Se
     headers: { 'x-user-email': user?.email || '' },
   }).then(response => handleResponse<Session>(response));
 };
+
+export const disableSession = (sessionId: string): Promise<Session> => {
+  const user = getLocalUser();
+  return fetch(`${API_BASE_URL}/sessions/${sessionId}/disable`, {
+    method: 'POST',
+    headers: { 'x-user-email': user?.email || '' },
+  }).then(response => handleResponse<Session>(response));
+};
+
+export const restoreSession = (sessionId: string): Promise<Session> => {
+  const user = getLocalUser();
+  return fetch(`${API_BASE_URL}/sessions/${sessionId}/restore`, {
+    method: 'POST',
+    headers: { 'x-user-email': user?.email || '' },
+  }).then(response => handleResponse<Session>(response));
+};

@@ -82,7 +82,8 @@ const App: React.FC = () => {
           setCurrentSession(session);
         } catch (error) {
           console.error("Join or fetch failed; likely needs password.", error);
-          setLoginModalState({ isOpen: true, isJoining: true, requirePassword: true, message: 'Access required. This session may be password-protected. Please enter your details to continue.', errorMessage: (error as Error)?.message || 'Authentication required', callback: () => window.location.reload() });
+          // Do not show an error before the user attempts to submit a password.
+          setLoginModalState({ isOpen: true, isJoining: true, requirePassword: true, message: 'Access required. This session may be password-protected. Please enter your details to continue.', errorMessage: undefined, callback: () => window.location.reload() });
         }
       } else if (!user) {
         setLoginModalState({ isOpen: true, isJoining: false, callback: (newUser) => setCurrentUser(newUser || null) });
@@ -225,6 +226,7 @@ const App: React.FC = () => {
 
   // --- Annotation & Comment handlers ---
   const handleSelectionEnd = useCallback((selection: SelectionRectangle) => {
+    if (currentSession?.isDisabled) return;
     const newAnnotation: Annotation = {
       id: Date.now(),
       ...selection,
@@ -237,6 +239,7 @@ const App: React.FC = () => {
 
   const handleAddComment = useCallback(async (annotationId: number, commentText: string, parentId?: number) => {
     if (!currentUser || !currentSession) return;
+    if (currentSession.isDisabled) return;
     
     if (pendingAnnotation && pendingAnnotation.id === annotationId) {
       // It's a new annotation, we need to add it first, then the comment
@@ -258,11 +261,13 @@ const App: React.FC = () => {
   
   const handleUpdateComment = useCallback(async (annotationId: number, commentId: number, newText: string) => {
     if (!currentSession) return;
+    if (currentSession.isDisabled) return;
     await api.updateComment(currentSession.id, annotationId, commentId, newText);
   }, [currentSession]);
   
   const handleDeleteComment = useCallback(async (annotationId: number, commentId: number) => {
     if (!currentSession) return;
+    if (currentSession.isDisabled) return;
     await api.deleteComment(currentSession.id, annotationId, commentId);
   }, [currentSession]);
 
@@ -289,6 +294,7 @@ const App: React.FC = () => {
 
   const performDeleteAnnotation = async (annotationId: number) => {
     if (!currentSession) return;
+    if (currentSession.isDisabled) return;
     await api.deleteAnnotation(currentSession.id, annotationId);
     if (activeAnnotationId === annotationId) {
       setActiveAnnotationId(null);
@@ -306,6 +312,7 @@ const App: React.FC = () => {
 
   const handleToggleSolve = useCallback(async (annotationId: number) => {
     if (!currentSession) return;
+    if (currentSession.isDisabled) return;
     const annotation = currentSession.annotations.find(a => a.id === annotationId);
     if(annotation) {
         await api.toggleAnnotationSolve(currentSession.id, annotationId, !annotation.isSolved);
@@ -338,10 +345,15 @@ const App: React.FC = () => {
               <div className="text-right">
                 <div className="text-gray-300">Welcome, <span className="font-bold text-cyan-400">{currentUser.displayName}</span>!</div>
                 {currentSession && (
-                  <div className="text-xs text-gray-400 mt-0.5 relative group/name">
+                  <div className="text-xs text-gray-400 mt-0.5 relative group/name flex items-center gap-2">
                     <span>
                       Session name: <span className="text-gray-200">{currentSession.sessionName || 'Untitled'}</span>
                     </span>
+                    {currentSession.isDisabled && (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full bg-red-900/40 border border-red-600 text-red-300 text-[11px]">
+                        Read-only
+                      </span>
+                    )}
                     {(currentSession.sessionDescription || '').trim().length > 0 && (
                       <div className="absolute right-0 mt-1 bg-gray-900 text-gray-200 text-xs whitespace-pre-wrap border border-gray-700 rounded px-2 py-1 shadow-lg z-50 hidden group-hover/name:block max-w-sm">
                         {currentSession.sessionDescription}
@@ -364,6 +376,13 @@ const App: React.FC = () => {
                 <button onClick={() => setHistoryOpen(true)} className="px-4 py-2 bg-gray-600 hover:bg-gray-700 text-white font-semibold rounded-lg shadow-md transition-colors duration-300">
                   History
                 </button>
+                {currentUser?.email === currentSession.ownerId && (
+                  currentSession.isDisabled ? (
+                    <button onClick={async ()=>{ try{ const updated = await api.restoreSession(currentSession.id); setCurrentSession(updated);} catch(e){ alert((e as Error).message);} }} className="px-4 py-2 bg-green-600 hover:bg-green-700 text-white font-semibold rounded-lg shadow-md transition-colors duration-300">Restore</button>
+                  ) : (
+                    <button onClick={async ()=>{ if(!confirm('Disable this session? It will be deleted in 30 minutes.')) return; try{ const updated = await api.disableSession(currentSession.id); setCurrentSession(updated);} catch(e){ alert((e as Error).message);} }} className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white font-semibold rounded-lg shadow-md transition-colors duration-300">Delete Session</button>
+                  )
+                )}
               </>
             )}
             {currentUser && (
@@ -433,6 +452,9 @@ const App: React.FC = () => {
         disableIdentityInputs={!!currentUser}
         onSubmit={handleLogin}
       />
+      {currentSession?.isDisabled && currentSession.deleteAt && (
+        <DisableCountdown deleteAt={currentSession.deleteAt} />
+      )}
       {currentSession && <ShareModal
         isOpen={shareModalOpen}
         onClose={() => setShareModalOpen(false)}

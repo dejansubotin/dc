@@ -28,6 +28,8 @@ export function initializeDb() {
       blockedEmails TEXT, -- JSON blob
       createdAt INTEGER NOT NULL,
       lastActivity INTEGER NOT NULL,
+      isDisabled INTEGER DEFAULT 0,
+      deleteAt INTEGER,
       history TEXT, -- JSON blob of events
       FOREIGN KEY (ownerId) REFERENCES users(email)
     );
@@ -49,6 +51,12 @@ export function initializeDb() {
     }
     if (!columns.find(c => c.name === 'blockedEmails')) {
       db.prepare(`ALTER TABLE sessions ADD COLUMN blockedEmails TEXT`).run();
+    }
+    if (!columns.find(c => c.name === 'isDisabled')) {
+      db.prepare(`ALTER TABLE sessions ADD COLUMN isDisabled INTEGER DEFAULT 0`).run();
+    }
+    if (!columns.find(c => c.name === 'deleteAt')) {
+      db.prepare(`ALTER TABLE sessions ADD COLUMN deleteAt INTEGER`).run();
     }
     if (!columns.find(c => c.name === 'lastActivity')) {
       db.prepare(`ALTER TABLE sessions ADD COLUMN lastActivity INTEGER`).run();
@@ -91,6 +99,8 @@ const rowToSession = (row: any): Session | null => {
         collaboratorIds: JSON.parse(row.collaboratorIds),
         blockedEmails: row.blockedEmails ? JSON.parse(row.blockedEmails) : [],
         lastActivity: row.lastActivity ?? row.createdAt,
+        isDisabled: !!row.isDisabled,
+        deleteAt: row.deleteAt || undefined,
         history: row.history ? JSON.parse(row.history) : [],
     };
 };
@@ -124,14 +134,14 @@ export const saveSession = (session: Session) => {
     if (existing) {
         db.prepare(`
             UPDATE sessions
-            SET ownerId = ?, sessionName = ?, sessionDescription = ?, imageUrl = ?, sessionThumbnailUrl = ?, annotations = ?, password = ?, collaboratorIds = ?, blockedEmails = ?, createdAt = ?, lastActivity = ?, history = ?
+            SET ownerId = ?, sessionName = ?, sessionDescription = ?, imageUrl = ?, sessionThumbnailUrl = ?, annotations = ?, password = ?, collaboratorIds = ?, blockedEmails = ?, createdAt = ?, lastActivity = ?, isDisabled = ?, deleteAt = ?, history = ?
             WHERE id = ?
-        `).run(session.ownerId, session.sessionName, session.sessionDescription, session.imageUrl, session.sessionThumbnailUrl, annotationsJson, session.password, collaboratorIdsJson, blockedEmailsJson, session.createdAt, (session as any).lastActivity ?? session.createdAt, historyJson, session.id);
+        `).run(session.ownerId, session.sessionName, session.sessionDescription, session.imageUrl, session.sessionThumbnailUrl, annotationsJson, session.password, collaboratorIdsJson, blockedEmailsJson, session.createdAt, (session as any).lastActivity ?? session.createdAt, session.isDisabled ? 1 : 0, session.deleteAt || null, historyJson, session.id);
     } else {
         db.prepare(`
-            INSERT INTO sessions (id, ownerId, sessionName, sessionDescription, imageUrl, sessionThumbnailUrl, annotations, password, collaboratorIds, blockedEmails, createdAt, lastActivity, history)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(session.id, session.ownerId, session.sessionName, session.sessionDescription, session.imageUrl, session.sessionThumbnailUrl, annotationsJson, session.password, collaboratorIdsJson, blockedEmailsJson, session.createdAt, (session as any).lastActivity ?? session.createdAt, historyJson);
+            INSERT INTO sessions (id, ownerId, sessionName, sessionDescription, imageUrl, sessionThumbnailUrl, annotations, password, collaboratorIds, blockedEmails, createdAt, lastActivity, isDisabled, deleteAt, history)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(session.id, session.ownerId, session.sessionName, session.sessionDescription, session.imageUrl, session.sessionThumbnailUrl, annotationsJson, session.password, collaboratorIdsJson, blockedEmailsJson, session.createdAt, (session as any).lastActivity ?? session.createdAt, session.isDisabled ? 1 : 0, session.deleteAt || null, historyJson);
     }
 };
 
@@ -160,6 +170,11 @@ export function getActiveCollaboratorEmails(sinceMs: number): string[] {
 
 export function getInactiveSessions(thresholdMs: number): { id: string; imageUrl: string; sessionThumbnailUrl?: string }[] {
   const rows = db.prepare(`SELECT id, imageUrl, sessionThumbnailUrl FROM sessions WHERE lastActivity < ?`).all(thresholdMs) as { id: string; imageUrl: string; sessionThumbnailUrl?: string }[];
+  return rows;
+}
+
+export function getSessionsToDelete(now: number): { id: string; imageUrl: string; sessionThumbnailUrl?: string }[] {
+  const rows = db.prepare(`SELECT id, imageUrl, sessionThumbnailUrl FROM sessions WHERE isDisabled = 1 AND deleteAt IS NOT NULL AND deleteAt <= ?`).all(now) as { id: string; imageUrl: string; sessionThumbnailUrl?: string }[];
   return rows;
 }
 

@@ -15,7 +15,12 @@ A real‑time, web‑based tool for design review and visual feedback. Users upl
 - Session history log (who did what, when)
 - “My Sessions” view to quickly open your sessions in new tabs
 - Email notifications on new comments (optional SMTP)
-- Session naming on creation for better recognition
+- Session naming + description on creation; description shown as tooltip
+- Members modal: view members; owners can remove members (blocked list)
+- Disable/restore sessions: owner can disable (read‑only) and schedule deletion in 30 min; countdown visible; can restore within window
+- Disk storage for images + thumbnails; thumbnails speed up lists
+- Auto‑cleanup: inactive sessions (20 days) and scheduled deletions (30 min)
+- Monitoring dashboard at `/monitor` (password protected)
 
 ## Architecture
 
@@ -77,7 +82,7 @@ WebSockets (Socket.IO):
   - Named volume `app-data` mounted at `/data` in `server` for SQLite persistence
 - Nginx (`nginx.conf`):
   - Serves static assets and SPA fallback
-  - Proxies `/api` → `server:3000` (prefix preserved)
+  - Proxies `/api` and `/monitor` → `server:3000` (prefix preserved); proxies `/uploads` to serve images
   - Proxies `/socket.io` for WebSocket upgrades
   - `client_max_body_size 25m;` for image uploads
 - Backend limits: `express.json({ limit: '25mb' })`
@@ -90,6 +95,7 @@ WebSockets (Socket.IO):
 - Server:
   - `APP_BASE_URL` — same as above
   - `DB_PATH` — optional override (default `/data/collaborator.db`)
+  - `RETENTION_DAYS` — inactivity retention window (default 20)
   - SMTP (optional): `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_FROM_EMAIL`
 
 ### Coolify Notes
@@ -116,7 +122,7 @@ WebSockets (Socket.IO):
 
 ## Security & Limits
 
-- Session password is a basic shared secret; not a user auth system. Reading a session requires membership (owner/collaborator).
+- Session password is a basic shared secret; not a user auth system. Reading a session requires membership (owner/collaborator). Removed users are blocked even if they know the password.
 - Increase Nginx/body limits if you plan larger images.
 
 ## Future Ideas

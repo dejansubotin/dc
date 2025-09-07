@@ -172,6 +172,7 @@ apiRouter.post('/sessions/:id/collaborators', (req, res) => {
     const session = getSessionById(req.params.id);
     const { email, displayName, password } = req.body as { email: string; displayName: string; password?: string };
     if (!session) return res.status(404).json({ error: 'Session not found' });
+    if (session.isDisabled) return res.status(403).json({ error: 'Session is disabled' });
     const emailLower = (email || '').toLowerCase();
     const isExisting = session.ownerId.toLowerCase() === emailLower || session.collaboratorIds.map(e => e.toLowerCase()).includes(emailLower);
     const blocked = (session.blockedEmails || []).map(e=>e.toLowerCase());
@@ -227,6 +228,7 @@ apiRouter.put('/sessions/:id/password', (req, res) => {
 apiRouter.post('/sessions/:id/annotations', (req, res) => {
     const session = getSessionById(req.params.id);
     if (!session) return res.status(404).json({ error: 'Session not found' });
+    if (session.isDisabled) return res.status(403).json({ error: 'Session is disabled' });
     const { annotation } = req.body;
     session.annotations.push(annotation);
     appendHistory(session, { id: Date.now(), type: 'annotation_added', actor: req.body.actor || undefined, message: `Annotation ${annotation.id} added`, timestamp: Date.now() });
@@ -239,6 +241,7 @@ apiRouter.post('/sessions/:id/annotations', (req, res) => {
 apiRouter.delete('/sessions/:id/annotations/:annoId', (req, res) => {
     const session = getSessionById(req.params.id);
     if (!session) return res.status(404).json({ error: 'Session not found' });
+    if (session.isDisabled) return res.status(403).json({ error: 'Session is disabled' });
     session.annotations = session.annotations.filter(a => a.id !== parseInt(req.params.annoId));
     appendHistory(session, { id: Date.now(), type: 'annotation_deleted', actor: req.body.actor || undefined, message: `Annotation ${req.params.annoId} deleted`, timestamp: Date.now() });
     (session as any).lastActivity = Date.now();
@@ -250,6 +253,7 @@ apiRouter.delete('/sessions/:id/annotations/:annoId', (req, res) => {
 apiRouter.put('/sessions/:id/annotations/:annoId/solve', (req, res) => {
     const session = getSessionById(req.params.id);
     if (!session) return res.status(404).json({ error: 'Session not found' });
+    if (session.isDisabled) return res.status(403).json({ error: 'Session is disabled' });
     const { isSolved } = req.body;
     session.annotations = session.annotations.map(a => 
         a.id === parseInt(req.params.annoId) ? { ...a, isSolved } : a
@@ -264,6 +268,7 @@ apiRouter.put('/sessions/:id/annotations/:annoId/solve', (req, res) => {
 apiRouter.post('/sessions/:id/annotations/:annoId/comments', async (req, res) => {
     const session = getSessionById(req.params.id);
     if (!session) return res.status(404).json({ error: 'Session not found' });
+    if (session.isDisabled) return res.status(403).json({ error: 'Session is disabled' });
     
     const { userEmail, text, parentId } = req.body;
     const user = findUserByEmail(userEmail);
@@ -310,6 +315,7 @@ apiRouter.post('/sessions/:id/annotations/:annoId/comments', async (req, res) =>
 apiRouter.put('/sessions/:id/annotations/:annoId/comments/:commentId/like', (req, res) => {
     const session = getSessionById(req.params.id);
     if (!session) return res.status(404).json({ error: 'Session not found' });
+    if (session.isDisabled) return res.status(403).json({ error: 'Session is disabled' });
     const annoId = parseInt(req.params.annoId);
     const commentId = parseInt(req.params.commentId);
     const { userEmail, like } = req.body as { userEmail: string; like: boolean };
@@ -459,4 +465,20 @@ server.listen(PORT, () => {
       console.warn('Cleanup task failed:', e);
     }
   }, intervalMs);
+  // Frequent task for scheduled deletions (every minute)
+  setInterval(() => {
+    try {
+      const due = getSessionsToDelete(Date.now());
+      if (due.length) {
+        for (const s of due) {
+          if (s.imageUrl && s.imageUrl.startsWith('/uploads/')) {
+            const p = '/data' + s.imageUrl; try { fs.unlinkSync(p); } catch {}
+          }
+          const t = (s as any).sessionThumbnailUrl; if (t && t.startsWith('/uploads/')) { const p2 = '/data' + t; try { fs.unlinkSync(p2); } catch {} }
+        }
+        const removed = deleteSessionsByIds(due.map(s => s.id));
+        if (removed > 0) console.log(`Deleted ${removed} session(s) scheduled for deletion.`);
+      }
+    } catch (e) { console.warn('Scheduled deletion cleanup failed:', e); }
+  }, 60 * 1000);
 });

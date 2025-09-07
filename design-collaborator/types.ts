@@ -44,6 +44,8 @@ export interface Session {
   blockedEmails?: string[]; // removed/banned emails
   createdAt: number;
   lastActivity: number;
+  isDisabled?: boolean;
+  deleteAt?: number; // epoch ms when scheduled deletion occurs
   history?: HistoryEvent[];
   collaboratorProfiles?: Collaborator[];
 }

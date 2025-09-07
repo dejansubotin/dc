@@ -8,6 +8,24 @@ The format is based on Keep a Changelog and this project adheres to Semantic Ver
 
 - TBD
 
+## [0.6.0] - 2025-09-06
+
+### Added
+- Monitoring dashboard at `/monitor` (password `bluewheel101!`), showing sessions, DB size, images/thumbnails counts and sizes, profiles, and container network totals.
+- Members modal: list members; owner can remove collaborators. Removed users are blocked from access/rejoin.
+- Session disable/restore workflow: owner can disable a session (read‑only) and schedule deletion in 30 minutes with a visible countdown; can restore within the window; permanent deletion cleans DB and files.
+- Disk image storage and client‑side thumbnails (served from `/uploads`), replacing base64 storage for new sessions.
+- Header badge “Read‑only” for disabled sessions; title click navigates home; favicon from `favicon.ico`.
+- Edit Profile modal and auto‑populated, read‑only identity in join modal for known users.
+
+### Changed
+- Strict join flow: existing collaborators don’t need to re‑enter password; blocked users receive Access Revoked.
+- Initial password modal shows no error until a failed submit.
+- Nginx proxies `/uploads` and `/monitor` to backend.
+
+### Fixed
+- Various join/auto‑join edge cases; name/email prefill/locking in join modal.
+
 ## [0.4.0] - 2025-09-06
 
 ### Added
@@ -63,7 +81,8 @@ The format is based on Keep a Changelog and this project adheres to Semantic Ver
 ### Added
 - Initial codebase with React frontend, Node/Express backend, and SQLite persistence.
 
-[Unreleased]: https://example.com/compare/v0.4.0...HEAD
+[Unreleased]: https://example.com/compare/v0.6.0...HEAD
+[0.6.0]: https://example.com/compare/v0.4.0...v0.6.0
 [0.4.0]: https://example.com/compare/v0.3.1...v0.4.0
 [0.3.1]: https://example.com/compare/v0.3.0...v0.3.1
 [0.3.0]: https://example.com/compare/v0.2.0...v0.3.0
