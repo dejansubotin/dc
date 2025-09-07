@@ -426,6 +426,37 @@ app.post('/monitor', express.urlencoded({ extended: true }), (req, res) => {
   }
   res.status(401).send('<html><body style="background:#0f172a;color:#e2e8f0;font-family:system-ui"><p>Invalid password.</p><a style="color:#67e8f9" href="/monitor">Try again</a></body></html>');
 });
+// Disable a session (owner only) — schedules deletion in 30 minutes
+apiRouter.post('/sessions/:id/disable', (req, res) => {
+    const session = getSessionById(req.params.id);
+    if (!session) return res.status(404).json({ error: 'Session not found' });
+    const actor = (req.header('x-user-email') || '').toLowerCase();
+    if (actor !== session.ownerId.toLowerCase()) return res.status(403).json({ error: 'Only owner can disable session' });
+    const now = Date.now();
+    session.isDisabled = true;
+    session.deleteAt = now + 30 * 60 * 1000;
+    appendHistory(session, { id: now, type: 'annotation_deleted', actor, message: 'Session disabled (scheduled for deletion)', timestamp: now });
+    (session as any).lastActivity = now;
+    saveSession(session);
+    broadcastSessionUpdate(session.id, session);
+    res.json(enrichSession(session));
+});
+
+// Restore a disabled session (owner only)
+apiRouter.post('/sessions/:id/restore', (req, res) => {
+    const session = getSessionById(req.params.id);
+    if (!session) return res.status(404).json({ error: 'Session not found' });
+    const actor = (req.header('x-user-email') || '').toLowerCase();
+    if (actor !== session.ownerId.toLowerCase()) return res.status(403).json({ error: 'Only owner can restore session' });
+    session.isDisabled = false;
+    session.deleteAt = undefined;
+    const now = Date.now();
+    appendHistory(session, { id: now, type: 'annotation_added', actor, message: 'Session restored (deletion cancelled)', timestamp: now });
+    (session as any).lastActivity = now;
+    saveSession(session);
+    broadcastSessionUpdate(session.id, session);
+    res.json(enrichSession(session));
+});
 // Health
 app.get('/api/health', (_req, res) => {
     res.json({ ok: true });
