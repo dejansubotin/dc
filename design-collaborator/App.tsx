@@ -11,6 +11,7 @@ import HistoryModal from './components/HistoryModal';
 import CreateSessionModal from './components/CreateSessionModal';
 import MembersModal from './components/MembersModal';
 import EditProfileModal from './components/EditProfileModal';
+import DisableCountdown from './components/DisableCountdown';
 import SessionHistory from './components/SessionHistory';
 import type { Annotation, SelectionRectangle, User, Session, Comment } from './types';
 import * as api from './services/api';
