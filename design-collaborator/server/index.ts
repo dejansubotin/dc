@@ -167,13 +167,18 @@ apiRouter.get('/sessions/:id', (req, res) => {
 
 apiRouter.post('/sessions/:id/collaborators', (req, res) => {
     const session = getSessionById(req.params.id);
-    const { email, displayName, password } = req.body;
+    const { email, displayName, password } = req.body as { email: string; displayName: string; password?: string };
     if (!session) return res.status(404).json({ error: 'Session not found' });
-    if (session.password && session.password !== password) {
-        return res.status(403).json({ error: 'Incorrect password' });
+    const emailLower = (email || '').toLowerCase();
+    const isExisting = session.ownerId.toLowerCase() === emailLower || session.collaboratorIds.map(e => e.toLowerCase()).includes(emailLower);
+    if (session.password && !isExisting) {
+        const pwd = (password || '').trim();
+        if (session.password !== pwd) {
+            return res.status(403).json({ error: 'Incorrect password' });
+        }
     }
     findOrCreateUser(email, displayName);
-    if (!session.collaboratorIds.includes(email)) {
+    if (!session.collaboratorIds.map(e=>e.toLowerCase()).includes(emailLower)) {
         session.collaboratorIds.push(email);
         saveSession(session);
     }
