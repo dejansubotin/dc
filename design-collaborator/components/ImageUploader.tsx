@@ -2,7 +2,7 @@
 import React, { useState, useCallback, useRef } from 'react';
 
 interface ImageUploaderProps {
-  onImageUpload: (file: File) => void;
+  onImageUpload: (files: File[]) => void; // supports multiple
 }
 
 const UploadIcon: React.FC = () => (
@@ -17,14 +17,17 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageUpload }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const handleFile = useCallback((files: FileList | null) => {
-    if (files && files.length > 0) {
-      const file = files[0];
-      if (file.type.startsWith('image/')) {
-        onImageUpload(file);
-      } else {
-        alert('Please upload an image file.');
-      }
+    if (!files || files.length === 0) return;
+    const fileArr = Array.from(files).filter(f => f.type.startsWith('image/'));
+    if (fileArr.length === 0) {
+      alert('Please upload image files.');
+      return;
     }
+    const limited = fileArr.slice(0, 10);
+    if (fileArr.length > 10) {
+      alert('Only the first 10 images will be used.');
+    }
+    onImageUpload(limited);
   }, [onImageUpload]);
 
   const handleDragEnter = useCallback((e: React.DragEvent<HTMLDivElement>) => {
@@ -79,17 +82,18 @@ const ImageUploader: React.FC<ImageUploaderProps> = ({ onImageUpload }) => {
           ref={fileInputRef}
           type="file"
           accept="image/*"
+          multiple
           className="hidden"
           onChange={handleFileChange}
         />
         <UploadIcon />
         <p className="mt-4 text-xl font-semibold text-gray-400">
-          Drag & Drop your image here
+          Drag & Drop images here
         </p>
         <p className="mt-2 text-gray-500">or click to browse files</p>
       </div>
       <div className="mt-3 text-xs text-amber-300 bg-amber-900/30 border border-amber-700 rounded p-2 text-center">
-        Sessions inactive for 20 days are automatically deleted.
+        Up to 10 images per session. Inactive sessions delete after 20 days.
       </div>
     </>
   );

@@ -63,6 +63,19 @@ export const createSession = (ownerEmail: string, imageDataUrl: string, sessionN
     }).then(response => handleResponse<Session>(response));
 };
 
+export const createSessionMulti = (
+  ownerEmail: string,
+  images: { imageDataUrl: string; thumbnailDataUrl?: string }[],
+  sessionName?: string,
+  sessionDescription?: string,
+): Promise<Session> => {
+  return fetch(`${API_BASE_URL}/sessions`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ ownerEmail, images, sessionName, sessionDescription }),
+  }).then(response => handleResponse<Session>(response));
+};
+
 // Fix: Explicitly type the response handling to resolve promise type mismatch.
 export const getSession = (sessionId: string): Promise<Session> => {
     const user = getLocalUser();

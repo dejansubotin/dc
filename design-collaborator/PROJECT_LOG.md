@@ -21,6 +21,7 @@ A real‑time, web‑based tool for design review and visual feedback. Users upl
 - Disk storage for images + thumbnails; thumbnails speed up lists
 - Auto‑cleanup: inactive sessions (20 days) and scheduled deletions (30 min)
 - Monitoring dashboard at `/monitor` (password protected)
+- Multi‑image sessions: upload up to 10 images; navigate via thumbnail strip and horizontal paging; pan/zoom per image
 
 ## Architecture
 
@@ -45,8 +46,9 @@ A real‑time, web‑based tool for design review and visual feedback. Users upl
 
 - `User`: `{ email, displayName }`
 - `Comment`: `{ id, userId, author, text, timestamp, parentId?, likes?: string[] }`
-- `Annotation`: `{ id, x, y, width, height, comments: Comment[], isSolved }`
-- `Session`: `{ id, ownerId, sessionName?, imageUrl, annotations, password?, collaboratorIds, createdAt, history? }`
+- `Annotation`: `{ id, x, y, width, height, comments: Comment[], isSolved, imageIndex? }` (imageIndex binds annotation to a specific image in multi‑image sessions)
+- `Session`: `{ id, ownerId, sessionName?, imageUrl, sessionThumbnailUrl?, images?, annotations, password?, collaboratorIds, createdAt, history? }`
+  - `images?`: optional array of `{ url, thumbnailUrl? }` when a session contains multiple images. `imageUrl/sessionThumbnailUrl` continue to reference the first image for compatibility.
 - `HistoryEvent`: `{ id, type, actor?, message, timestamp }`
 
 Notes:
@@ -59,7 +61,9 @@ Base path: `/api`
 
 - `POST /users` — create/find user: `{ email, displayName }`
 - `GET /users/:email/sessions` — recent sessions for a user
-- `POST /sessions` — create session: `{ ownerEmail, imageDataUrl, sessionName? }`
+- `POST /sessions` — create session, single or multi:
+  - Single: `{ ownerEmail, imageDataUrl, thumbnailDataUrl?, sessionName?, sessionDescription? }`
+  - Multi: `{ ownerEmail, images: [{ imageDataUrl, thumbnailDataUrl? }, ...], sessionName?, sessionDescription? }` (max 10 images)
 - `GET /sessions/:id` — get session (requires membership). Client sends `x-user-email` header for identity.
 - `POST /sessions/:id/collaborators` — join session: `{ email, displayName, password? }`
 - `PUT /sessions/:id/password` — set/remove password: `{ password? }`

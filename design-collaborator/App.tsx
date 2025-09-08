@@ -2,6 +2,7 @@ import React, { useState, useCallback, useEffect, useRef } from 'react';
 import { io, Socket } from 'socket.io-client';
 import ImageUploader from './components/ImageUploader';
 import ImageViewer from './components/ImageViewer';
+import MultiImageViewer from './components/MultiImageViewer';
 import CommentSidebar from './components/CommentSidebar';
 import ConfirmationModal from './components/ConfirmationModal';
 import LoginModal from './components/LoginModal';
@@ -49,6 +50,7 @@ const App: React.FC = () => {
   const [createSessionOpen, setCreateSessionOpen] = useState(false);
   const [pendingImageDataUrl, setPendingImageDataUrl] = useState<string | null>(null);
   const [pendingThumbDataUrl, setPendingThumbDataUrl] = useState<string | null>(null);
+  const [pendingImages, setPendingImages] = useState<{ dataUrl: string; thumb?: string }[] | null>(null);
   const [membersOpen, setMembersOpen] = useState(false);
   const [editProfileOpen, setEditProfileOpen] = useState(false);
 
@@ -161,50 +163,69 @@ const App: React.FC = () => {
     }
   };
 
-  const handleImageUpload = useCallback(async (file: File) => {
+  const handleImageUpload = useCallback(async (files: File[]) => {
     if (!currentUser) return;
-    const reader = new FileReader();
-    reader.onload = async () => {
-      const imageDataUrl = reader.result as string;
-      // Generate thumbnail in browser
-      try {
-        const img = new Image();
-        img.onload = () => {
-          const maxW = 400; const maxH = 300;
-          let { width, height } = img;
-          const ratio = Math.min(maxW / width, maxH / height, 1);
-          width = Math.round(width * ratio);
-          height = Math.round(height * ratio);
-          const canvas = document.createElement('canvas');
-          canvas.width = width; canvas.height = height;
-          const ctx = canvas.getContext('2d');
-          if (ctx) {
-            ctx.drawImage(img, 0, 0, width, height);
-            const thumb = canvas.toDataURL('image/jpeg', 0.75);
-            setPendingThumbDataUrl(thumb);
-          }
-          setPendingImageDataUrl(imageDataUrl);
-          setCreateSessionOpen(true);
-        };
-        img.onerror = () => {
-          setPendingThumbDataUrl(null);
-          setPendingImageDataUrl(imageDataUrl);
-          setCreateSessionOpen(true);
-        };
-        img.src = imageDataUrl;
-      } catch {
-        setPendingThumbDataUrl(null);
-        setPendingImageDataUrl(imageDataUrl);
-        setCreateSessionOpen(true);
-      }
-    };
-    reader.readAsDataURL(file);
+    // Read all files and build thumbs
+    const promises = files.map(file => new Promise<{ dataUrl: string; thumb?: string }>((resolve) => {
+      const reader = new FileReader();
+      reader.onload = () => {
+        const imageDataUrl = reader.result as string;
+        try {
+          const img = new Image();
+          img.onload = () => {
+            const maxW = 400; const maxH = 300;
+            let { width, height } = img as HTMLImageElement;
+            const ratio = Math.min(maxW / width, maxH / height, 1);
+            width = Math.round(width * ratio);
+            height = Math.round(height * ratio);
+            const canvas = document.createElement('canvas');
+            canvas.width = width; canvas.height = height;
+            const ctx = canvas.getContext('2d');
+            let thumb: string | undefined;
+            if (ctx) {
+              ctx.drawImage(img, 0, 0, width, height);
+              thumb = canvas.toDataURL('image/jpeg', 0.75);
+            }
+            resolve({ dataUrl: imageDataUrl, thumb });
+          };
+          img.onerror = () => resolve({ dataUrl: imageDataUrl });
+          img.src = imageDataUrl;
+        } catch {
+          resolve({ dataUrl: imageDataUrl });
+        }
+      };
+      reader.readAsDataURL(file);
+    }));
+    const results = await Promise.all(promises);
+    if (results.length === 1) {
+      // Keep single-image code path for backward compatibility
+      setPendingImageDataUrl(results[0].dataUrl);
+      setPendingThumbDataUrl(results[0].thumb || null);
+      setPendingImages(null);
+    } else {
+      setPendingImages(results);
+      setPendingImageDataUrl(null);
+      setPendingThumbDataUrl(null);
+    }
+    setCreateSessionOpen(true);
   }, [currentUser]);
 
   const handleConfirmCreateSession = async (sessionName: string, sessionDescription?: string) => {
-    if (!currentUser || !pendingImageDataUrl) return;
+    if (!currentUser) return;
     try {
-      const newSession = await api.createSession(currentUser.email, pendingImageDataUrl, sessionName || undefined, sessionDescription, pendingThumbDataUrl || undefined);
+      let newSession;
+      if (pendingImages && pendingImages.length > 0) {
+        newSession = await api.createSessionMulti(
+          currentUser.email,
+          pendingImages.map(p => ({ imageDataUrl: p.dataUrl, thumbnailDataUrl: p.thumb })),
+          sessionName || undefined,
+          sessionDescription
+        );
+      } else if (pendingImageDataUrl) {
+        newSession = await api.createSession(currentUser.email, pendingImageDataUrl, sessionName || undefined, sessionDescription, pendingThumbDataUrl || undefined);
+      } else {
+        return;
+      }
       setCurrentSession(newSession);
       window.history.pushState({}, '', `?sessionId=${newSession.id}`);
     } catch (error) {
@@ -214,6 +235,7 @@ const App: React.FC = () => {
       setCreateSessionOpen(false);
       setPendingImageDataUrl(null);
       setPendingThumbDataUrl(null);
+      setPendingImages(null);
     }
   };
 
@@ -238,13 +260,14 @@ const App: React.FC = () => {
   };
 
   // --- Annotation & Comment handlers ---
-  const handleSelectionEnd = useCallback((selection: SelectionRectangle) => {
+  const handleSelectionEnd = useCallback((selection: SelectionRectangle, imageIndex?: number) => {
     if (currentSession?.isDisabled) return;
     const newAnnotation: Annotation = {
       id: Date.now(),
       ...selection,
       comments: [],
       isSolved: false,
+      imageIndex: typeof imageIndex === 'number' ? imageIndex : 0,
     };
     setPendingAnnotation(newAnnotation);
     setActiveAnnotationId(newAnnotation.id);
@@ -424,16 +447,29 @@ const App: React.FC = () => {
           ) : (
             <div className="flex w-full h-full max-h-[calc(100vh-120px)] gap-6">
               <div className="flex-grow flex items-center justify-center bg-gray-900/50 rounded-lg overflow-hidden">
-                <ImageViewer
-                  key={currentSession.id}
-                  imageUrl={currentSession.imageUrl}
-                  annotations={currentSession.annotations}
-                  pendingAnnotation={pendingAnnotation}
-                  activeAnnotationId={activeAnnotationId}
-                  onSelectionEnd={handleSelectionEnd}
-                  onAnnotationClick={handleAnnotationClick}
-                  onDeleteAnnotation={handleDeleteAnnotation}
-                />
+                {currentSession.images && currentSession.images.length > 0 ? (
+                  <MultiImageViewer
+                    key={currentSession.id}
+                    images={currentSession.images}
+                    annotations={currentSession.annotations}
+                    pendingAnnotation={pendingAnnotation}
+                    activeAnnotationId={activeAnnotationId}
+                    onSelectionEnd={handleSelectionEnd}
+                    onAnnotationClick={handleAnnotationClick}
+                    onDeleteAnnotation={handleDeleteAnnotation}
+                  />
+                ) : (
+                  <ImageViewer
+                    key={currentSession.id}
+                    imageUrl={currentSession.imageUrl}
+                    annotations={currentSession.annotations}
+                    pendingAnnotation={pendingAnnotation}
+                    activeAnnotationId={activeAnnotationId}
+                    onSelectionEnd={handleSelectionEnd}
+                    onAnnotationClick={handleAnnotationClick}
+                    onDeleteAnnotation={handleDeleteAnnotation}
+                  />
+                )}
               </div>
               <div className="w-full max-w-sm flex-shrink-0">
                 <CommentSidebar

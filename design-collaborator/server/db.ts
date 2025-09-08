@@ -22,6 +22,7 @@ export function initializeDb() {
       sessionDescription TEXT,
       imageUrl TEXT NOT NULL,
       sessionThumbnailUrl TEXT,
+      images TEXT, -- JSON array of { url, thumbnailUrl }
       annotations TEXT NOT NULL, -- JSON blob
       password TEXT,
       collaboratorIds TEXT NOT NULL, -- JSON blob
@@ -48,6 +49,9 @@ export function initializeDb() {
     }
     if (!columns.find(c => c.name === 'sessionThumbnailUrl')) {
       db.prepare(`ALTER TABLE sessions ADD COLUMN sessionThumbnailUrl TEXT`).run();
+    }
+    if (!columns.find(c => c.name === 'images')) {
+      db.prepare(`ALTER TABLE sessions ADD COLUMN images TEXT`).run();
     }
     if (!columns.find(c => c.name === 'blockedEmails')) {
       db.prepare(`ALTER TABLE sessions ADD COLUMN blockedEmails TEXT`).run();
@@ -95,6 +99,7 @@ const rowToSession = (row: any): Session | null => {
         sessionName: row.sessionName,
         sessionDescription: row.sessionDescription,
         sessionThumbnailUrl: row.sessionThumbnailUrl,
+        images: row.images ? JSON.parse(row.images) : undefined,
         annotations: JSON.parse(row.annotations),
         collaboratorIds: JSON.parse(row.collaboratorIds),
         blockedEmails: row.blockedEmails ? JSON.parse(row.blockedEmails) : [],
@@ -130,18 +135,19 @@ export const saveSession = (session: Session) => {
     const collaboratorIdsJson = JSON.stringify(session.collaboratorIds);
     const blockedEmailsJson = JSON.stringify(session.blockedEmails || []);
     const historyJson = JSON.stringify(session.history || []);
+    const imagesJson = session.images ? JSON.stringify(session.images) : null;
     
     if (existing) {
         db.prepare(`
             UPDATE sessions
-            SET ownerId = ?, sessionName = ?, sessionDescription = ?, imageUrl = ?, sessionThumbnailUrl = ?, annotations = ?, password = ?, collaboratorIds = ?, blockedEmails = ?, createdAt = ?, lastActivity = ?, isDisabled = ?, deleteAt = ?, history = ?
+            SET ownerId = ?, sessionName = ?, sessionDescription = ?, imageUrl = ?, sessionThumbnailUrl = ?, images = ?, annotations = ?, password = ?, collaboratorIds = ?, blockedEmails = ?, createdAt = ?, lastActivity = ?, isDisabled = ?, deleteAt = ?, history = ?
             WHERE id = ?
-        `).run(session.ownerId, session.sessionName, session.sessionDescription, session.imageUrl, session.sessionThumbnailUrl, annotationsJson, session.password, collaboratorIdsJson, blockedEmailsJson, session.createdAt, (session as any).lastActivity ?? session.createdAt, session.isDisabled ? 1 : 0, session.deleteAt || null, historyJson, session.id);
+        `).run(session.ownerId, session.sessionName, session.sessionDescription, session.imageUrl, session.sessionThumbnailUrl, imagesJson, annotationsJson, session.password, collaboratorIdsJson, blockedEmailsJson, session.createdAt, (session as any).lastActivity ?? session.createdAt, session.isDisabled ? 1 : 0, session.deleteAt || null, historyJson, session.id);
     } else {
         db.prepare(`
-            INSERT INTO sessions (id, ownerId, sessionName, sessionDescription, imageUrl, sessionThumbnailUrl, annotations, password, collaboratorIds, blockedEmails, createdAt, lastActivity, isDisabled, deleteAt, history)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        `).run(session.id, session.ownerId, session.sessionName, session.sessionDescription, session.imageUrl, session.sessionThumbnailUrl, annotationsJson, session.password, collaboratorIdsJson, blockedEmailsJson, session.createdAt, (session as any).lastActivity ?? session.createdAt, session.isDisabled ? 1 : 0, session.deleteAt || null, historyJson);
+            INSERT INTO sessions (id, ownerId, sessionName, sessionDescription, imageUrl, sessionThumbnailUrl, images, annotations, password, collaboratorIds, blockedEmails, createdAt, lastActivity, isDisabled, deleteAt, history)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+        `).run(session.id, session.ownerId, session.sessionName, session.sessionDescription, session.imageUrl, session.sessionThumbnailUrl, imagesJson, annotationsJson, session.password, collaboratorIdsJson, blockedEmailsJson, session.createdAt, (session as any).lastActivity ?? session.createdAt, session.isDisabled ? 1 : 0, session.deleteAt || null, historyJson);
     }
 };
 
@@ -168,13 +174,13 @@ export function getActiveCollaboratorEmails(sinceMs: number): string[] {
   return Array.from(emails);
 }
 
-export function getInactiveSessions(thresholdMs: number): { id: string; imageUrl: string; sessionThumbnailUrl?: string }[] {
-  const rows = db.prepare(`SELECT id, imageUrl, sessionThumbnailUrl FROM sessions WHERE lastActivity < ?`).all(thresholdMs) as { id: string; imageUrl: string; sessionThumbnailUrl?: string }[];
+export function getInactiveSessions(thresholdMs: number): { id: string; imageUrl: string; sessionThumbnailUrl?: string; images?: string }[] {
+  const rows = db.prepare(`SELECT id, imageUrl, sessionThumbnailUrl, images FROM sessions WHERE lastActivity < ?`).all(thresholdMs) as { id: string; imageUrl: string; sessionThumbnailUrl?: string; images?: string }[];
   return rows;
 }
 
-export function getSessionsToDelete(now: number): { id: string; imageUrl: string; sessionThumbnailUrl?: string }[] {
-  const rows = db.prepare(`SELECT id, imageUrl, sessionThumbnailUrl FROM sessions WHERE isDisabled = 1 AND deleteAt IS NOT NULL AND deleteAt <= ?`).all(now) as { id: string; imageUrl: string; sessionThumbnailUrl?: string }[];
+export function getSessionsToDelete(now: number): { id: string; imageUrl: string; sessionThumbnailUrl?: string; images?: string }[] {
+  const rows = db.prepare(`SELECT id, imageUrl, sessionThumbnailUrl, images FROM sessions WHERE isDisabled = 1 AND deleteAt IS NOT NULL AND deleteAt <= ?`).all(now) as { id: string; imageUrl: string; sessionThumbnailUrl?: string; images?: string }[];
   return rows;
 }
 

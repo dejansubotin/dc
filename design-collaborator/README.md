@@ -8,6 +8,7 @@ Image Collaborator is a real-time, web-based tool designed for seamless design r
 
 -   **Real-Time Collaboration**: Changes and comments appear instantly for all participants via WebSockets.
 -   **Annotations & Threads**: Draw regions, have multi-level threaded discussions, collapse threads; per-user colors and likes.
+-   **Multi-Image Sessions**: Upload up to 10 images per session; navigate via a thumbnail strip and horizontal slides. Pan with Space + drag; zoom with the mouse wheel per image.
 -   **Shareable Sessions**: Invite collaborators with a unique URL; strict membership required to view.
 -   **Password Protection**: Protect sessions with an optional password; existing collaborators don’t need to re-enter it.
 -   **Members Management**: See current members; owners can remove (block) members.
@@ -115,6 +116,15 @@ The frontend will now be running and accessible at **http://localhost:5173** (or
 
 ---
 
+## Using Multi-Image Sessions
+
+- On the home screen, drag & drop multiple image files or select several via the file picker. Up to 10 images are accepted; extra files are ignored.
+- After creating the session, use the thumbnail bar at the top to jump to an image or horizontally scroll between slides.
+- Pan by holding Space and dragging with the left mouse button; zoom with the mouse wheel—both apply per image.
+- Annotations and their comment threads are specific to the image where they were created.
+
+Note: The backend JSON body size limit is 25 MB by default. Large images may exceed this when uploading many at once; increase limits in Express and Nginx if needed.
+
 ## Getting Started: Docker (Production-like)
 
 This is the recommended way to run the entire application stack locally. It mirrors a production deployment.
@@ -168,3 +178,8 @@ Once it's running, the application will be accessible at **http://localhost:8081
 - Identity is stored in the browser (localStorage) and auto-filled in join dialogs; only password is typed if the session is protected.
 - Owners can remove collaborators; removed users are blocked from viewing or rejoining (even with the password).
 - Click the header title to go home; favicon is provided via `favicon.ico`.
+
+## API Notes
+
+- Create session (single): `POST /api/sessions` with `{ ownerEmail, imageDataUrl, thumbnailDataUrl?, sessionName?, sessionDescription? }`.
+- Create session (multi): `POST /api/sessions` with `{ ownerEmail, images: [{ imageDataUrl, thumbnailDataUrl? }, ...], sessionName?, sessionDescription? }` (max 10 images). On success, the response `Session` may include `images?: { url, thumbnailUrl? }[]`.

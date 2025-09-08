@@ -6,7 +6,16 @@ The format is based on Keep a Changelog and this project adheres to Semantic Ver
 
 ## [Unreleased]
 
-- TBD
+### Added
+- Multi-image sessions: upload up to 10 images per session. Images display as horizontally paged slides with a thumbnail strip for quick jumps. Existing pan/zoom (Space + drag, wheel) works per image.
+- Per-image annotations: annotations are bound to an image via `imageIndex`; comments/likes/history continue to work.
+- API: `POST /api/sessions` now accepts an `images` array (each with `imageDataUrl` and optional `thumbnailDataUrl`) as an alternative to the single `imageDataUrl` body parameter.
+
+### Changed
+- Database: new `images` column on `sessions` storing an array of `{ url, thumbnailUrl }`. Cleanup jobs remove all related files for multi-image sessions.
+
+### Notes
+- Backwards compatible: existing single-image sessions continue to work and display with the original viewer; lists use the first image/thumbnail.
 
 ## [0.6.0] - 2025-09-06
 

@@ -92,9 +92,9 @@ apiRouter.get('/users/:email/sessions', (req, res) => {
 // Session routes
 apiRouter.post('/sessions', (req, res) => {
     try {
-        const { ownerEmail, imageDataUrl, sessionName, sessionDescription } = req.body;
-        if (!ownerEmail || !imageDataUrl) {
-            return res.status(400).json({ error: 'ownerEmail and imageDataUrl are required' });
+        const { ownerEmail, imageDataUrl, images: imagesInput, sessionName, sessionDescription } = req.body as { ownerEmail: string; imageDataUrl?: string; images?: { imageDataUrl: string; thumbnailDataUrl?: string }[]; sessionName?: string; sessionDescription?: string };
+        if (!ownerEmail || (!imageDataUrl && !Array.isArray(imagesInput))) {
+            return res.status(400).json({ error: 'ownerEmail and an image or images[] are required' });
         }
         // Ensure owner exists (defensive if FK is enforced)
         findOrCreateUser(ownerEmail, ownerEmail.split('@')[0] || ownerEmail);
@@ -107,6 +107,7 @@ apiRouter.post('/sessions', (req, res) => {
             sessionDescription,
             imageUrl: '',
             sessionThumbnailUrl: '',
+            images: undefined,
             annotations: [],
             collaboratorIds: [ownerEmail],
             blockedEmails: [],
@@ -114,41 +115,82 @@ apiRouter.post('/sessions', (req, res) => {
             lastActivity: now as any,
             history: [],
         };
-        // Persist image to disk under /data/uploads
-        try {
-          const m = /^data:(.*?);base64,(.*)$/.exec(imageDataUrl || '');
+        // Persist image(s) to disk under /data/uploads
+        const uploadsDir = '/data/uploads';
+        const thumbsDir = '/data/uploads/thumbs';
+        try { fs.mkdirSync(uploadsDir, { recursive: true }); } catch {}
+        try { fs.mkdirSync(thumbsDir, { recursive: true }); } catch {}
+
+        function saveDataUrlToFile(dataUrl: string, baseName: string): { path: string; ext: string } {
+          const m = /^data:(.*?);base64,(.*)$/.exec(dataUrl || '');
           if (!m) throw new Error('Invalid image data');
           const mime = m[1] || 'application/octet-stream';
           const b64 = m[2];
           const ext = mime.includes('png') ? 'png' : mime.includes('jpeg') || mime.includes('jpg') ? 'jpg' : mime.includes('webp') ? 'webp' : 'bin';
-          const uploadsDir = '/data/uploads';
-          try { fs.mkdirSync(uploadsDir, { recursive: true }); } catch {}
-          const filename = `${newSession.id}.${ext}`;
+          const filename = `${baseName}.${ext}`;
           const filePath = `${uploadsDir}/${filename}`;
           fs.writeFileSync(filePath, Buffer.from(b64, 'base64'));
-          newSession.imageUrl = `/uploads/${filename}`;
-        } catch (e) {
-          console.error('Failed to save image to disk:', e);
-          return res.status(400).json({ error: 'Invalid image data' });
+          return { path: `/uploads/${filename}`, ext };
         }
-        // Optional thumbnail
-        try {
-          const thumbDataUrl = (req.body.thumbnailDataUrl || '') as string;
-          if (thumbDataUrl.startsWith('data:')) {
-            const m2 = /^data:(.*?);base64,(.*)$/.exec(thumbDataUrl);
-            if (m2) {
-              const mime2 = m2[1] || 'image/jpeg';
-              const b642 = m2[2];
-              const ext2 = mime2.includes('png') ? 'png' : 'jpg';
-              const thumbsDir = '/data/uploads/thumbs';
-              try { fs.mkdirSync(thumbsDir, { recursive: true }); } catch {}
-              const thumbFile = `${thumbsDir}/${newSession.id}.${ext2}`;
-              fs.writeFileSync(thumbFile, Buffer.from(b642, 'base64'));
-              newSession.sessionThumbnailUrl = `/uploads/thumbs/${newSession.id}.${ext2}`;
+
+        if (Array.isArray(imagesInput) && imagesInput.length > 0) {
+          const limited = imagesInput.slice(0, 10);
+          const saved: { url: string; thumbnailUrl?: string }[] = [];
+          for (let i = 0; i < limited.length; i++) {
+            const baseName = `${newSession.id}_${i}`;
+            // image
+            try {
+              const savedImg = saveDataUrlToFile(limited[i].imageDataUrl, baseName);
+              // thumb (optional)
+              let thumbPath: string | undefined;
+              if (limited[i].thumbnailDataUrl && limited[i].thumbnailDataUrl.startsWith('data:')) {
+                const tM = /^data:(.*?);base64,(.*)$/.exec(limited[i].thumbnailDataUrl);
+                if (tM) {
+                  const mime2 = tM[1] || 'image/jpeg';
+                  const b642 = tM[2];
+                  const ext2 = mime2.includes('png') ? 'png' : 'jpg';
+                  const thumbFile = `${thumbsDir}/${baseName}.${ext2}`;
+                  fs.writeFileSync(thumbFile, Buffer.from(b642, 'base64'));
+                  thumbPath = `/uploads/thumbs/${baseName}.${ext2}`;
+                }
+              }
+              if (i === 0) {
+                newSession.imageUrl = savedImg.path;
+                if (thumbPath) newSession.sessionThumbnailUrl = thumbPath;
+              }
+              saved.push({ url: savedImg.path, thumbnailUrl: thumbPath });
+            } catch (e) {
+              console.error('Failed to save one of the images:', e);
+              return res.status(400).json({ error: 'Invalid image data in images[]' });
             }
           }
-        } catch (e) {
-          console.warn('Thumbnail generation failed or skipped:', e);
+          newSession.images = saved;
+        } else {
+          // Single image fallback
+          try {
+            const savedImg = saveDataUrlToFile(imageDataUrl || '', newSession.id);
+            newSession.imageUrl = savedImg.path;
+          } catch (e) {
+            console.error('Failed to save image to disk:', e);
+            return res.status(400).json({ error: 'Invalid image data' });
+          }
+          // Optional thumbnail
+          try {
+            const thumbDataUrl = (req.body.thumbnailDataUrl || '') as string;
+            if (thumbDataUrl.startsWith('data:')) {
+              const m2 = /^data:(.*?);base64,(.*)$/.exec(thumbDataUrl);
+              if (m2) {
+                const mime2 = m2[1] || 'image/jpeg';
+                const b642 = m2[2];
+                const ext2 = mime2.includes('png') ? 'png' : 'jpg';
+                const thumbFile = `${thumbsDir}/${newSession.id}.${ext2}`;
+                fs.writeFileSync(thumbFile, Buffer.from(b642, 'base64'));
+                newSession.sessionThumbnailUrl = `/uploads/thumbs/${newSession.id}.${ext2}`;
+              }
+            }
+          } catch (e) {
+            console.warn('Thumbnail generation failed or skipped:', e);
+          }
         }
         appendHistory(newSession, { id: Date.now(), type: 'session_created', actor: ownerEmail, message: `Session created${sessionName ? `: ${sessionName}` : ''}`, timestamp: Date.now() });
         saveSession(newSession);
@@ -483,15 +525,20 @@ server.listen(PORT, () => {
       const stale = getInactiveSessions(threshold);
       if (stale.length) {
         for (const s of stale) {
+          // remove primary image and thumb
           if (s.imageUrl && s.imageUrl.startsWith('/uploads/')) {
-            const diskPath = '/data' + s.imageUrl;
-            try { fs.unlinkSync(diskPath); } catch {}
+            const diskPath = '/data' + s.imageUrl; try { fs.unlinkSync(diskPath); } catch {}
           }
           const thumb = (s as any).sessionThumbnailUrl as string | undefined;
-          if (thumb && thumb.startsWith('/uploads/')) {
-            const tpath = '/data' + thumb;
-            try { fs.unlinkSync(tpath); } catch {}
-          }
+          if (thumb && thumb.startsWith('/uploads/')) { const tpath = '/data' + thumb; try { fs.unlinkSync(tpath); } catch {} }
+          // remove multi images if present
+          try {
+            const imgs = s.images ? JSON.parse(s.images) as { url: string; thumbnailUrl?: string }[] : [];
+            for (const im of imgs) {
+              if (im.url && im.url.startsWith('/uploads/')) { try { fs.unlinkSync('/data' + im.url); } catch {} }
+              if (im.thumbnailUrl && im.thumbnailUrl.startsWith('/uploads/')) { try { fs.unlinkSync('/data' + im.thumbnailUrl); } catch {} }
+            }
+          } catch {}
         }
         const removed = deleteSessionsByIds(stale.map(s => s.id));
         if (removed > 0) console.log(`Cleaned up ${removed} inactive session(s).`);
@@ -506,10 +553,15 @@ server.listen(PORT, () => {
       const due = getSessionsToDelete(Date.now());
       if (due.length) {
         for (const s of due) {
-          if (s.imageUrl && s.imageUrl.startsWith('/uploads/')) {
-            const p = '/data' + s.imageUrl; try { fs.unlinkSync(p); } catch {}
-          }
+          if (s.imageUrl && s.imageUrl.startsWith('/uploads/')) { const p = '/data' + s.imageUrl; try { fs.unlinkSync(p); } catch {} }
           const t = (s as any).sessionThumbnailUrl; if (t && t.startsWith('/uploads/')) { const p2 = '/data' + t; try { fs.unlinkSync(p2); } catch {} }
+          try {
+            const imgs = s.images ? JSON.parse(s.images) as { url: string; thumbnailUrl?: string }[] : [];
+            for (const im of imgs) {
+              if (im.url && im.url.startsWith('/uploads/')) { try { fs.unlinkSync('/data' + im.url); } catch {} }
+              if (im.thumbnailUrl && im.thumbnailUrl.startsWith('/uploads/')) { try { fs.unlinkSync('/data' + im.thumbnailUrl); } catch {} }
+            }
+          } catch {}
         }
         const removed = deleteSessionsByIds(due.map((s: { id: string }) => s.id));
         if (removed > 0) console.log(`Deleted ${removed} session(s) scheduled for deletion.`);

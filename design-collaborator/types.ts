@@ -22,6 +22,9 @@ export interface Annotation {
   height: number; // percentage
   comments: Comment[];
   isSolved: boolean;
+  // When sessions have multiple images, this associates
+  // the annotation with the target image index (0-based).
+  imageIndex?: number;
 }
 
 export interface SelectionRectangle {
@@ -31,6 +34,11 @@ export interface SelectionRectangle {
     height: number;
 }
 
+export interface SessionImage {
+  url: string;
+  thumbnailUrl?: string;
+}
+
 export interface Session {
   id: string;
   ownerId: string; // user's email
@@ -38,6 +46,8 @@ export interface Session {
   sessionDescription?: string;
   imageUrl: string;
   sessionThumbnailUrl?: string;
+  // Optional when a session contains multiple images.
+  images?: SessionImage[];
   annotations: Annotation[];
   password?: string;
   collaboratorIds: string[]; // array of user emails
