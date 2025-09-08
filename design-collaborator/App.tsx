@@ -55,6 +55,7 @@ const App: React.FC = () => {
   const [membersOpen, setMembersOpen] = useState(false);
   const [editProfileOpen, setEditProfileOpen] = useState(false);
   const [addImagesOpen, setAddImagesOpen] = useState(false);
+  const [deleteImageState, setDeleteImageState] = useState<{ isOpen: boolean; index: number | null; message?: string }>(() => ({ isOpen: false, index: null }));
 
   // --- Initialization and Socket Effect ---
   useEffect(() => {
@@ -465,6 +466,19 @@ const App: React.FC = () => {
                       onDeleteAnnotation={handleDeleteAnnotation}
                       canAddImages={currentUser?.email === currentSession.ownerId && !currentSession.isDisabled && images.length < 10}
                       onOpenAddImages={() => setAddImagesOpen(true)}
+                      canDeleteImages={currentUser?.email === currentSession.ownerId && !currentSession.isDisabled && images.length > 1}
+                      onDeleteImage={(idx) => {
+                        if (!currentSession) return;
+                        const hasAnnos = currentSession.annotations.some(a => (a.imageIndex ?? 0) === idx);
+                        if (hasAnnos) {
+                          setDeleteImageState({ isOpen: true, index: idx, message: 'This image has annotations and comments. Deleting it will permanently remove all annotations and comments for this image. Are you sure?' });
+                        } else {
+                          (async () => {
+                            try { const updated = await api.deleteSessionImage(currentSession.id, idx); setCurrentSession(updated); }
+                            catch (e) { alert((e as Error).message); }
+                          })();
+                        }
+                      }}
                     />
                   );
                 })()}
@@ -528,6 +542,26 @@ const App: React.FC = () => {
           onClose={() => { setCreateSessionOpen(false); setPendingImageDataUrl(null); }}
           onCreate={handleConfirmCreateSession}
         />
+      )}
+      {currentSession && (
+        <ConfirmationModal
+          isOpen={deleteImageState.isOpen}
+          onClose={() => setDeleteImageState({ isOpen: false, index: null })}
+          onConfirm={async () => {
+            if (!currentSession || deleteImageState.index == null) return;
+            try {
+              const updated = await api.deleteSessionImage(currentSession.id, deleteImageState.index);
+              setCurrentSession(updated);
+            } catch (e) {
+              alert((e as Error).message);
+            } finally {
+              setDeleteImageState({ isOpen: false, index: null });
+            }
+          }}
+          title="Remove Image?"
+        >
+          <p>{deleteImageState.message || 'Remove this image from the session?'}</p>
+        </ConfirmationModal>
       )}
       {currentSession && (
         <AddImagesModal

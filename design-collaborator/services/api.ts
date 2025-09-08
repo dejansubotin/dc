@@ -205,3 +205,11 @@ export const addSessionImages = (
     body: JSON.stringify({ images }),
   }).then(response => handleResponse<Session>(response));
 };
+
+export const deleteSessionImage = (sessionId: string, index: number): Promise<Session> => {
+  const user = getLocalUser();
+  return fetch(`${API_BASE_URL}/sessions/${sessionId}/images/${index}`, {
+    method: 'DELETE',
+    headers: { 'x-user-email': user?.email || '' },
+  }).then(response => handleResponse<Session>(response));
+};

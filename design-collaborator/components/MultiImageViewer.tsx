@@ -12,6 +12,8 @@ interface MultiImageViewerProps {
   onDeleteAnnotation: (annotationId: number) => void;
   canAddImages?: boolean;
   onOpenAddImages?: () => void;
+  canDeleteImages?: boolean;
+  onDeleteImage?: (index: number) => void;
 }
 
 const MultiImageViewer: React.FC<MultiImageViewerProps> = ({
@@ -24,6 +26,8 @@ const MultiImageViewer: React.FC<MultiImageViewerProps> = ({
   onDeleteAnnotation,
   canAddImages,
   onOpenAddImages,
+  canDeleteImages,
+  onDeleteImage,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const slideRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -60,19 +64,29 @@ const MultiImageViewer: React.FC<MultiImageViewerProps> = ({
       <div className="flex-shrink-0 p-2 bg-gray-800/60 border-b border-gray-700 overflow-x-auto thumbs-scroll">
         <div className="flex gap-2 items-center">
           {images.map((img, i) => (
-            <button
-              key={i}
-              onClick={() => scrollToIndex(i)}
-              className={`rounded overflow-hidden border ${currentIndex === i ? 'border-cyan-400' : 'border-gray-600 hover:border-gray-500'}`}
-              title={`Image ${i + 1}`}
-            >
-              <img
-                src={img.thumbnailUrl || img.url}
-                alt={`thumb-${i}`}
-                className="w-20 h-14 object-cover block bg-gray-900"
-                draggable={false}
-              />
-            </button>
+            <div key={i} className="relative group">
+              <button
+                onClick={() => scrollToIndex(i)}
+                className={`rounded overflow-hidden border ${currentIndex === i ? 'border-cyan-400' : 'border-gray-600 hover:border-gray-500'}`}
+                title={`Image ${i + 1}`}
+              >
+                <img
+                  src={img.thumbnailUrl || img.url}
+                  alt={`thumb-${i}`}
+                  className="w-20 h-14 object-cover block bg-gray-900"
+                  draggable={false}
+                />
+              </button>
+              {canDeleteImages && (
+                <button
+                  onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDeleteImage && onDeleteImage(i); }}
+                  className="absolute -top-1 -right-1 hidden group-hover:block bg-gray-900/80 hover:bg-red-600 text-white rounded-full border border-gray-600 w-6 h-6 flex items-center justify-center"
+                  title="Remove image"
+                >
+                  ✕
+                </button>
+              )}
+            </div>
           ))}
           {canAddImages && (
             <button

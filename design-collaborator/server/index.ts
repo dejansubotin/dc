@@ -559,6 +559,55 @@ apiRouter.post('/sessions/:id/disable', (req, res) => {
     res.json(enrichSession(session));
 });
 
+// Delete an image by index (owner only). Requires that at least one image remains.
+apiRouter.delete('/sessions/:id/images/:index', (req, res) => {
+    const session = getSessionById(req.params.id);
+    if (!session) return res.status(404).json({ error: 'Session not found' });
+    if (session.isDisabled) return res.status(403).json({ error: 'Session is disabled' });
+    const actor = (req.header('x-user-email') || '').toLowerCase();
+    if (actor !== session.ownerId.toLowerCase()) return res.status(403).json({ error: 'Only owner can remove images' });
+
+    const idx = parseInt(req.params.index, 10);
+    const list = session.images && session.images.length ? session.images : [{ url: session.imageUrl, thumbnailUrl: session.sessionThumbnailUrl }];
+    if (!Number.isFinite(idx) || idx < 0 || idx >= list.length) return res.status(400).json({ error: 'Invalid image index' });
+    if (list.length <= 1) return res.status(400).json({ error: 'Cannot remove the last image' });
+
+    const target = list[idx];
+    // delete files
+    try { if (target.url && target.url.startsWith('/uploads/')) { fs.unlinkSync('/data' + target.url); } } catch {}
+    try { if (target.thumbnailUrl && target.thumbnailUrl.startsWith('/uploads/')) { fs.unlinkSync('/data' + target.thumbnailUrl); } } catch {}
+
+    // ensure images array exists then remove
+    session.images = list.slice();
+    session.images.splice(idx, 1);
+
+    // remove annotations for this image and reindex others
+    const removedIdx = idx;
+    const remain: Annotation[] = [] as any;
+    for (const a of session.annotations) {
+      const ai = (a as any).imageIndex ?? 0;
+      if (ai === removedIdx) continue; // drop
+      if (ai > removedIdx) {
+        remain.push({ ...a, imageIndex: ai - 1 });
+      } else {
+        remain.push(a);
+      }
+    }
+    session.annotations = remain;
+
+    // Update primary image to first in array
+    if (session.images.length > 0) {
+      session.imageUrl = session.images[0].url;
+      session.sessionThumbnailUrl = session.images[0].thumbnailUrl;
+    }
+
+    appendHistory(session, { id: Date.now(), type: 'image_removed', actor, message: `Removed image #${idx + 1}`, timestamp: Date.now() });
+    (session as any).lastActivity = Date.now();
+    saveSession(session);
+    broadcastSessionUpdate(session.id, session);
+    res.json(enrichSession(session));
+});
+
 // Restore a disabled session (owner only)
 apiRouter.post('/sessions/:id/restore', (req, res) => {
     const session = getSessionById(req.params.id);
