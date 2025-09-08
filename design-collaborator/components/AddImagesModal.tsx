@@ -17,8 +17,6 @@ const AddImagesModal: React.FC<AddImagesModalProps> = ({ isOpen, onClose, onSele
   const [isDragging, setIsDragging] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  if (!isOpen) return null;
-
   const handleFiles = useCallback((list: FileList | null) => {
     if (!list) return;
     let files = Array.from(list).filter(f => f.type.startsWith('image/'));
@@ -26,6 +24,8 @@ const AddImagesModal: React.FC<AddImagesModalProps> = ({ isOpen, onClose, onSele
     if (files.length > remainingCapacity) files = files.slice(0, remainingCapacity);
     onSelectFiles(files);
   }, [onSelectFiles, remainingCapacity]);
+
+  if (!isOpen) return null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm">
@@ -59,4 +59,3 @@ const AddImagesModal: React.FC<AddImagesModalProps> = ({ isOpen, onClose, onSele
 };
 
 export default AddImagesModal;
-
