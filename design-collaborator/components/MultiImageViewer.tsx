@@ -76,7 +76,7 @@ const MultiImageViewer: React.FC<MultiImageViewerProps> = ({
           ))}
           {canAddImages && (
             <button
-              onClick={onOpenAddImages}
+              onClick={(e) => { e.preventDefault(); onOpenAddImages?.(); }}
               className="ml-1 w-20 h-14 flex items-center justify-center rounded border border-dashed border-gray-600 text-gray-300 hover:text-white hover:border-cyan-400"
               title="Add images"
             >
