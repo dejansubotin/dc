@@ -450,8 +450,8 @@ const App: React.FC = () => {
             <div className="flex w-full h-full max-h-[calc(100vh-120px)] gap-6">
               <div className="flex-grow flex items-center justify-center bg-gray-900/50 rounded-lg overflow-hidden">
                 {(() => {
-                  const images = currentSession.images && currentSession.images.length > 0 \
-                    ? currentSession.images \
+                  const images = (currentSession.images && currentSession.images.length > 0)
+                    ? currentSession.images
                     : [{ url: currentSession.imageUrl, thumbnailUrl: currentSession.sessionThumbnailUrl }];
                   return (
                     <MultiImageViewer
