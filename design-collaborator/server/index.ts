@@ -143,8 +143,9 @@ apiRouter.post('/sessions', (req, res) => {
               const savedImg = saveDataUrlToFile(limited[i].imageDataUrl, baseName);
               // thumb (optional)
               let thumbPath: string | undefined;
-              if (limited[i].thumbnailDataUrl && limited[i].thumbnailDataUrl.startsWith('data:')) {
-                const tM = /^data:(.*?);base64,(.*)$/.exec(limited[i].thumbnailDataUrl);
+              const td = limited[i] && limited[i].thumbnailDataUrl;
+              if (typeof td === 'string' && td.startsWith('data:')) {
+                const tM = /^data:(.*?);base64,(.*)$/.exec(td);
                 if (tM) {
                   const mime2 = tM[1] || 'image/jpeg';
                   const b642 = tM[2];
