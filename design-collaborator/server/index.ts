@@ -52,11 +52,11 @@ const enrichSession = (session: Session): Session => {
         .map(email => findUserByEmail(email))
         .filter((u): u is User => !!u)
         .map(u => ({ email: u.email, displayName: u.displayName }));
-    return { ...session, collaboratorProfiles: profiles };
+  return { ...session, collaboratorProfiles: profiles };
 };
 
 const broadcastSessionUpdate = (sessionId: string, session: Session) => {
-    io.to(sessionId).emit('session_updated', enrichSession(session));
+  io.to(sessionId).emit('session_updated', enrichSession(session));
 };
 
 const appendHistory = (session: Session, event: HistoryEvent) => {
@@ -279,6 +279,76 @@ apiRouter.post('/sessions/:id/annotations', (req, res) => {
     const { annotation } = req.body;
     session.annotations.push(annotation);
     appendHistory(session, { id: Date.now(), type: 'annotation_added', actor: req.body.actor || undefined, message: `Annotation ${annotation.id} added`, timestamp: Date.now() });
+    (session as any).lastActivity = Date.now();
+    saveSession(session);
+    broadcastSessionUpdate(session.id, session);
+    res.status(201).json(enrichSession(session));
+});
+
+// Add images to an existing session (owner only)
+apiRouter.post('/sessions/:id/images', (req, res) => {
+    const session = getSessionById(req.params.id);
+    if (!session) return res.status(404).json({ error: 'Session not found' });
+    if (session.isDisabled) return res.status(403).json({ error: 'Session is disabled' });
+    const actor = (req.header('x-user-email') || '').toLowerCase();
+    if (actor !== session.ownerId.toLowerCase()) return res.status(403).json({ error: 'Only owner can add images' });
+    const imagesInput = (req.body?.images || []) as { imageDataUrl: string; thumbnailDataUrl?: string }[];
+    if (!Array.isArray(imagesInput) || imagesInput.length === 0) return res.status(400).json({ error: 'images array required' });
+
+    const uploadsDir = '/data/uploads';
+    const thumbsDir = '/data/uploads/thumbs';
+    try { fs.mkdirSync(uploadsDir, { recursive: true }); } catch {}
+    try { fs.mkdirSync(thumbsDir, { recursive: true }); } catch {}
+
+    function saveDataUrlToFile(dataUrl: string, baseName: string): { path: string; ext: string } {
+      const m = /^data:(.*?);base64,(.*)$/.exec(dataUrl || '');
+      if (!m) throw new Error('Invalid image data');
+      const mime = m[1] || 'application/octet-stream';
+      const b64 = m[2];
+      const ext = mime.includes('png') ? 'png' : mime.includes('jpeg') || mime.includes('jpg') ? 'jpg' : mime.includes('webp') ? 'webp' : 'bin';
+      const filename = `${baseName}.${ext}`;
+      const filePath = `${uploadsDir}/${filename}`;
+      fs.writeFileSync(filePath, Buffer.from(b64, 'base64'));
+      return { path: `/uploads/${filename}`, ext };
+    }
+
+    // Ensure session.images is initialized with the first image if needed
+    if (!session.images || session.images.length === 0) {
+      session.images = [{ url: session.imageUrl, thumbnailUrl: session.sessionThumbnailUrl }];
+    }
+    const currentCount = session.images.length;
+    const capacity = 10 - currentCount;
+    if (capacity <= 0) return res.status(400).json({ error: 'Maximum of 10 images reached' });
+    const toAdd = imagesInput.slice(0, capacity);
+    const saved: { url: string; thumbnailUrl?: string }[] = [];
+
+    for (let i = 0; i < toAdd.length; i++) {
+      const idx = currentCount + i; // next index
+      const baseName = `${session.id}_${idx}`;
+      try {
+        const savedImg = saveDataUrlToFile(toAdd[i].imageDataUrl, baseName);
+        let thumbPath: string | undefined;
+        const td = toAdd[i] && toAdd[i].thumbnailDataUrl;
+        if (typeof td === 'string' && td.startsWith('data:')) {
+          const tM = /^data:(.*?);base64,(.*)$/.exec(td);
+          if (tM) {
+            const mime2 = tM[1] || 'image/jpeg';
+            const b642 = tM[2];
+            const ext2 = mime2.includes('png') ? 'png' : 'jpg';
+            const thumbFile = `${thumbsDir}/${baseName}.${ext2}`;
+            fs.writeFileSync(thumbFile, Buffer.from(b642, 'base64'));
+            thumbPath = `/uploads/thumbs/${baseName}.${ext2}`;
+          }
+        }
+        saved.push({ url: savedImg.path, thumbnailUrl: thumbPath });
+      } catch (e) {
+        console.error('Failed to save added image:', e);
+        return res.status(400).json({ error: 'Invalid image data' });
+      }
+    }
+
+    session.images = [...(session.images || []), ...saved];
+    appendHistory(session, { id: Date.now(), type: 'images_added', actor, message: `Added ${saved.length} image(s)`, timestamp: Date.now() });
     (session as any).lastActivity = Date.now();
     saveSession(session);
     broadcastSessionUpdate(session.id, session);

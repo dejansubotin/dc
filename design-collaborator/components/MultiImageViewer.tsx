@@ -10,6 +10,8 @@ interface MultiImageViewerProps {
   onSelectionEnd: (selection: SelectionRectangle, imageIndex?: number) => void;
   onAnnotationClick: (annotationId: number) => void;
   onDeleteAnnotation: (annotationId: number) => void;
+  canAddImages?: boolean;
+  onOpenAddImages?: () => void;
 }
 
 const MultiImageViewer: React.FC<MultiImageViewerProps> = ({
@@ -20,6 +22,8 @@ const MultiImageViewer: React.FC<MultiImageViewerProps> = ({
   onSelectionEnd,
   onAnnotationClick,
   onDeleteAnnotation,
+  canAddImages,
+  onOpenAddImages,
 }) => {
   const containerRef = useRef<HTMLDivElement>(null);
   const slideRefs = useRef<(HTMLDivElement | null)[]>([]);
@@ -53,8 +57,8 @@ const MultiImageViewer: React.FC<MultiImageViewerProps> = ({
   return (
     <div className="w-full h-full flex flex-col">
       {/* Thumbnails */}
-      <div className="flex-shrink-0 p-2 bg-gray-800/60 border-b border-gray-700 overflow-x-auto">
-        <div className="flex gap-2">
+      <div className="flex-shrink-0 p-2 bg-gray-800/60 border-b border-gray-700 overflow-x-auto thumbs-scroll">
+        <div className="flex gap-2 items-center">
           {images.map((img, i) => (
             <button
               key={i}
@@ -70,11 +74,22 @@ const MultiImageViewer: React.FC<MultiImageViewerProps> = ({
               />
             </button>
           ))}
+          {canAddImages && (
+            <button
+              onClick={onOpenAddImages}
+              className="ml-1 w-20 h-14 flex items-center justify-center rounded border border-dashed border-gray-600 text-gray-300 hover:text-white hover:border-cyan-400"
+              title="Add images"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" />
+              </svg>
+            </button>
+          )}
         </div>
       </div>
 
       {/* Slides */}
-      <div ref={containerRef} className="flex-1 overflow-x-auto overflow-y-hidden flex snap-x snap-mandatory">
+      <div ref={containerRef} className="flex-1 overflow-x-auto overflow-y-hidden flex snap-x snap-mandatory slides-scroll">
         {images.map((img, i) => {
           const annos = annotations.filter(a => (a.imageIndex ?? 0) === i);
           const pending = pendingAnnotation && (pendingAnnotation.imageIndex ?? 0) === i ? pendingAnnotation : null;
@@ -104,4 +119,3 @@ const MultiImageViewer: React.FC<MultiImageViewerProps> = ({
 };
 
 export default MultiImageViewer;
-

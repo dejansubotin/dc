@@ -62,7 +62,7 @@ export interface Session {
 
 export interface HistoryEvent {
   id: number; // epoch ms unique enough
-  type: 'session_created' | 'user_joined' | 'password_set' | 'password_removed' | 'annotation_added' | 'annotation_deleted' | 'annotation_solved' | 'annotation_reopened' | 'comment_added' | 'comment_liked' | 'comment_unliked';
+  type: 'session_created' | 'user_joined' | 'password_set' | 'password_removed' | 'annotation_added' | 'annotation_deleted' | 'annotation_solved' | 'annotation_reopened' | 'comment_added' | 'comment_liked' | 'comment_unliked' | 'images_added';
   actor?: string; // email of user performing action
   message: string;
   timestamp: number;

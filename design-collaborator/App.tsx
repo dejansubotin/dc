@@ -13,6 +13,7 @@ import CreateSessionModal from './components/CreateSessionModal';
 import MembersModal from './components/MembersModal';
 import EditProfileModal from './components/EditProfileModal';
 import DisableCountdown from './components/DisableCountdown';
+import AddImagesModal from './components/AddImagesModal';
 import SessionHistory from './components/SessionHistory';
 import type { Annotation, SelectionRectangle, User, Session, Comment } from './types';
 import * as api from './services/api';
@@ -53,6 +54,7 @@ const App: React.FC = () => {
   const [pendingImages, setPendingImages] = useState<{ dataUrl: string; thumb?: string }[] | null>(null);
   const [membersOpen, setMembersOpen] = useState(false);
   const [editProfileOpen, setEditProfileOpen] = useState(false);
+  const [addImagesOpen, setAddImagesOpen] = useState(false);
 
   // --- Initialization and Socket Effect ---
   useEffect(() => {
@@ -447,29 +449,25 @@ const App: React.FC = () => {
           ) : (
             <div className="flex w-full h-full max-h-[calc(100vh-120px)] gap-6">
               <div className="flex-grow flex items-center justify-center bg-gray-900/50 rounded-lg overflow-hidden">
-                {currentSession.images && currentSession.images.length > 0 ? (
-                  <MultiImageViewer
-                    key={currentSession.id}
-                    images={currentSession.images}
-                    annotations={currentSession.annotations}
-                    pendingAnnotation={pendingAnnotation}
-                    activeAnnotationId={activeAnnotationId}
-                    onSelectionEnd={handleSelectionEnd}
-                    onAnnotationClick={handleAnnotationClick}
-                    onDeleteAnnotation={handleDeleteAnnotation}
-                  />
-                ) : (
-                  <ImageViewer
-                    key={currentSession.id}
-                    imageUrl={currentSession.imageUrl}
-                    annotations={currentSession.annotations}
-                    pendingAnnotation={pendingAnnotation}
-                    activeAnnotationId={activeAnnotationId}
-                    onSelectionEnd={handleSelectionEnd}
-                    onAnnotationClick={handleAnnotationClick}
-                    onDeleteAnnotation={handleDeleteAnnotation}
-                  />
-                )}
+                {(() => {
+                  const images = currentSession.images && currentSession.images.length > 0 \
+                    ? currentSession.images \
+                    : [{ url: currentSession.imageUrl, thumbnailUrl: currentSession.sessionThumbnailUrl }];
+                  return (
+                    <MultiImageViewer
+                      key={currentSession.id + ':' + images.length}
+                      images={images}
+                      annotations={currentSession.annotations}
+                      pendingAnnotation={pendingAnnotation}
+                      activeAnnotationId={activeAnnotationId}
+                      onSelectionEnd={handleSelectionEnd}
+                      onAnnotationClick={handleAnnotationClick}
+                      onDeleteAnnotation={handleDeleteAnnotation}
+                      canAddImages={currentUser?.email === currentSession.ownerId && !currentSession.isDisabled && images.length < 10}
+                      onOpenAddImages={() => setAddImagesOpen(true)}
+                    />
+                  );
+                })()}
               </div>
               <div className="w-full max-w-sm flex-shrink-0">
                 <CommentSidebar
@@ -529,6 +527,49 @@ const App: React.FC = () => {
           isOpen={createSessionOpen}
           onClose={() => { setCreateSessionOpen(false); setPendingImageDataUrl(null); }}
           onCreate={handleConfirmCreateSession}
+        />
+      )}
+      {currentSession && (
+        <AddImagesModal
+          isOpen={addImagesOpen}
+          onClose={() => setAddImagesOpen(false)}
+          remainingCapacity={Math.max(0, 10 - ((currentSession.images?.length || 1)))}
+          onSelectFiles={async (files) => {
+            if (!currentSession) return;
+            // Build data URLs + thumbs
+            const results = await Promise.all(files.map((file) => new Promise<{ dataUrl: string; thumb?: string }>((resolve) => {
+              const reader = new FileReader();
+              reader.onload = () => {
+                const imageDataUrl = reader.result as string;
+                try {
+                  const img = new Image();
+                  img.onload = () => {
+                    const maxW = 400; const maxH = 300;
+                    let { width, height } = img as HTMLImageElement;
+                    const ratio = Math.min(maxW / width, maxH / height, 1);
+                    width = Math.round(width * ratio);
+                    height = Math.round(height * ratio);
+                    const canvas = document.createElement('canvas');
+                    canvas.width = width; canvas.height = height;
+                    const ctx = canvas.getContext('2d');
+                    let thumb: string | undefined;
+                    if (ctx) { ctx.drawImage(img, 0, 0, width, height); thumb = canvas.toDataURL('image/jpeg', 0.75); }
+                    resolve({ dataUrl: imageDataUrl, thumb });
+                  };
+                  img.onerror = () => resolve({ dataUrl: imageDataUrl });
+                  img.src = imageDataUrl;
+                } catch { resolve({ dataUrl: imageDataUrl }); }
+              };
+              reader.readAsDataURL(file);
+            })));
+            try {
+              const updated = await api.addSessionImages(currentSession.id, results.map(r => ({ imageDataUrl: r.dataUrl, thumbnailDataUrl: r.thumb })));
+              setCurrentSession(updated);
+              setAddImagesOpen(false);
+            } catch (e) {
+              alert((e as Error).message);
+            }
+          }}
         />
       )}
       {currentSession && (

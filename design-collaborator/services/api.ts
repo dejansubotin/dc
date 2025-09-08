@@ -193,3 +193,15 @@ export const restoreSession = (sessionId: string): Promise<Session> => {
     headers: { 'x-user-email': user?.email || '' },
   }).then(response => handleResponse<Session>(response));
 };
+
+export const addSessionImages = (
+  sessionId: string,
+  images: { imageDataUrl: string; thumbnailDataUrl?: string }[]
+): Promise<Session> => {
+  const user = getLocalUser();
+  return fetch(`${API_BASE_URL}/sessions/${sessionId}/images`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'x-user-email': user?.email || '' },
+    body: JSON.stringify({ images }),
+  }).then(response => handleResponse<Session>(response));
+};
