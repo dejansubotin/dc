@@ -4,7 +4,7 @@ import React, { useState, FormEvent } from 'react';
 interface LoginModalProps {
   isOpen: boolean;
   isJoiningWithPassword?: boolean;
-  onSubmit: (displayName: string, email: string, password?: string) => void;
+  onSubmit: (displayName: string, email: string, password?: string, honeypot?: string) => void;
   onClose?: () => void; // Optional: for modals that can be closed
   message?: string; // Optional notice to show at top
   externalError?: string; // Server-side error message to display
@@ -18,6 +18,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, isJoiningWithPassword =
   const [email, setEmail] = useState(defaultEmail || '');
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
+  const [honeypot, setHoneypot] = useState('');
 
   if (!isOpen) return null;
 
@@ -32,7 +33,7 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, isJoiningWithPassword =
       return;
     }
     setError('');
-    onSubmit((disableIdentityInputs ? (defaultDisplayName || '') : displayName.trim()), (disableIdentityInputs ? (defaultEmail || '') : email.trim()), password);
+    onSubmit((disableIdentityInputs ? (defaultDisplayName || '') : displayName.trim()), (disableIdentityInputs ? (defaultEmail || '') : email.trim()), password, honeypot);
   };
 
   return (
@@ -51,6 +52,13 @@ const LoginModal: React.FC<LoginModalProps> = ({ isOpen, isJoiningWithPassword =
           </p>
           
           <div className="space-y-4">
+            {/* Honeypot for bots */}
+            {!disableIdentityInputs && (
+              <div style={{ position: 'absolute', left: '-9999px', opacity: 0 }} aria-hidden="true">
+                <label htmlFor="hp_field">Leave this field empty</label>
+                <input id="hp_field" type="text" value={honeypot} onChange={(e)=>setHoneypot(e.target.value)} autoComplete="off" tabIndex={-1} />
+              </div>
+            )}
             <div>
               <label htmlFor="displayName" className="block text-sm font-medium text-gray-300 mb-1">Display Name</label>
               <input

@@ -71,7 +71,10 @@ const apiRouter = express.Router();
 
 // User routes
 apiRouter.post('/users', (req, res) => {
-    const { email, displayName } = req.body;
+    const { email, displayName, honeypot } = req.body;
+    if (honeypot && String(honeypot).trim().length > 0) {
+        return res.status(400).json({ error: 'Invalid submission' });
+    }
     if (!email || !displayName) {
         return res.status(400).json({ error: 'Email and displayName are required' });
     }
@@ -170,8 +173,9 @@ apiRouter.get('/sessions/:id', (req, res) => {
 
 apiRouter.post('/sessions/:id/collaborators', (req, res) => {
     const session = getSessionById(req.params.id);
-    const { email, displayName, password } = req.body as { email: string; displayName: string; password?: string };
+    const { email, displayName, password, honeypot } = req.body as { email: string; displayName: string; password?: string; honeypot?: string };
     if (!session) return res.status(404).json({ error: 'Session not found' });
+    if (honeypot && String(honeypot).trim().length > 0) return res.status(400).json({ error: 'Invalid submission' });
     if (session.isDisabled) return res.status(403).json({ error: 'Session is disabled' });
     const emailLower = (email || '').toLowerCase();
     const isExisting = session.ownerId.toLowerCase() === emailLower || session.collaboratorIds.map(e => e.toLowerCase()).includes(emailLower);

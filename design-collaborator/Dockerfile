@@ -4,6 +4,7 @@ FROM node:18-bullseye-slim AS builder
 WORKDIR /app
 
 COPY package.json tsconfig.json vite.config.ts ./
+COPY public ./public
 COPY index.html ./
 COPY components ./components
 COPY services ./services

@@ -1,0 +1,8 @@
+User-agent: *
+# Disallow session pages and monitor
+Disallow: /?sessionId=
+Disallow: /monitor
+Disallow: /uploads/
+
+Sitemap: https://collab.flowops.me/sitemap.xml
+

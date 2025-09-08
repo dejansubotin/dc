@@ -58,6 +58,18 @@ const App: React.FC = () => {
       const user = api.getLocalUser();
       const params = new URLSearchParams(window.location.search);
       const sessionId = params.get('sessionId');
+      // SEO: prevent indexing session pages
+      const ensureRobotsTag = (content: string) => {
+        if (typeof document === 'undefined') return;
+        let meta = document.querySelector('meta[name="robots"]') as HTMLMetaElement | null;
+        if (!meta) {
+          meta = document.createElement('meta');
+          meta.name = 'robots';
+          document.head.appendChild(meta);
+        }
+        meta.content = content;
+      };
+      if (sessionId) ensureRobotsTag('noindex, nofollow'); else ensureRobotsTag('index, follow');
 
       if (user) {
         setCurrentUser(user);
@@ -122,16 +134,16 @@ const App: React.FC = () => {
 
   }, [currentSession?.id]);
   
-  const handleLogin = async (displayName: string, email: string, password?: string) => {
+  const handleLogin = async (displayName: string, email: string, password?: string, honeypot?: string) => {
     const params = new URLSearchParams(window.location.search);
     const sessionId = params.get('sessionId');
 
     try {
         if (sessionId && loginModalState.isJoining) {
-            await api.joinSession(sessionId, email, displayName, password);
+            await api.joinSession(sessionId, email, displayName, password, honeypot);
         }
         
-        const user = await api.createUser(email, displayName);
+        const user = await api.createUser(email, displayName, honeypot);
         api.setLocalUser(user);
         setCurrentUser(user);
         setLoginModalState({ isOpen: false, isJoining: false, callback: () => {} });

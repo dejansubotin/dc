@@ -46,11 +46,11 @@ export function setLocalUser(user: User | null) {
 // --- API Calls ---
 
 // Fix: Explicitly type the response handling to resolve promise type mismatch.
-export const createUser = (email: string, displayName: string): Promise<User> => {
+export const createUser = (email: string, displayName: string, honeypot?: string): Promise<User> => {
   return fetch(`${API_BASE_URL}/users`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, displayName }),
+    body: JSON.stringify({ email, displayName, honeypot }),
   }).then(response => handleResponse<User>(response));
 };
 
@@ -77,11 +77,11 @@ export const getUserSessions = (email: string): Promise<Session[]> => {
 };
 
 // Fix: Explicitly type the response handling to resolve promise type mismatch.
-export const joinSession = (sessionId: string, email: string, displayName: string, password?: string): Promise<Session> => {
+export const joinSession = (sessionId: string, email: string, displayName: string, password?: string, honeypot?: string): Promise<Session> => {
     return fetch(`${API_BASE_URL}/sessions/${sessionId}/collaborators`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, displayName, password }),
+        body: JSON.stringify({ email, displayName, password, honeypot }),
     }).then(response => handleResponse<Session>(response));
 };
 
