@@ -37,17 +37,6 @@ const workflow = [
   },
 ];
 
-const testimonials = [
-  {
-    quote: 'Image Comment gave our product teams one place to annotate mobile screenshots, discuss fixes, and keep a permanent audit trail.',
-    author: 'Sofia F., Product Design Lead',
-  },
-  {
-    quote: 'We replaced messy PDFs with a single browser link. Clients leave precise comments and we respond live on the call.',
-    author: 'Marcus T., Creative Director',
-  },
-];
-
 const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
   return (
     <div className="min-h-screen bg-slate-950 text-gray-100">
@@ -77,11 +66,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
             </div>
             <div className="hidden lg:block">
               <div className="bg-gray-900/70 border border-gray-800 rounded-2xl shadow-2xl shadow-cyan-500/10 p-6 max-w-sm">
-                <p className="text-sm text-gray-400">Trusted for</p>
-                <div className="mt-2 text-5xl font-black text-white">
-                  1.2M+
-                </div>
-                <p className="text-sm text-gray-400">live image comments each month</p>
+                <p className="text-sm text-gray-400">Perfect for teams running</p>
                 <ul className="mt-6 space-y-3 text-sm">
                   <li className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-cyan-400" />UX reviews and QA sign-off</li>
                   <li className="flex items-center gap-2"><span className="h-2 w-2 rounded-full bg-cyan-400" />Creative agency proofing</li>
@@ -116,17 +101,6 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
                 </article>
               ))}
             </div>
-          </div>
-        </section>
-
-        <section className="max-w-5xl mx-auto px-6 py-16">
-          <div className="grid gap-10 md:grid-cols-2">
-            {testimonials.map((item) => (
-              <blockquote key={item.author} className="bg-slate-900/70 border border-slate-800 rounded-2xl p-6 text-gray-100 shadow-lg shadow-black/20">
-                <p className="text-lg leading-relaxed">“{item.quote}”</p>
-                <footer className="mt-4 text-sm text-gray-400">{item.author}</footer>
-              </blockquote>
-            ))}
           </div>
         </section>
 
