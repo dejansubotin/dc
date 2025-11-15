@@ -15,6 +15,7 @@ import EditProfileModal from './components/EditProfileModal';
 import DisableCountdown from './components/DisableCountdown';
 import AddImagesModal from './components/AddImagesModal';
 import SessionHistory from './components/SessionHistory';
+import LandingPage from './components/LandingPage';
 import type { Annotation, SelectionRectangle, User, Session, Comment } from './types';
 import * as api from './services/api';
 
@@ -24,6 +25,11 @@ const API_URL = '';
 
 const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [showLanding, setShowLanding] = useState(() => {
+    if (typeof window === 'undefined') return true;
+    const params = new URLSearchParams(window.location.search);
+    return !params.get('sessionId');
+  });
   const [currentSession, setCurrentSession] = useState<Session | null>(null);
   const [userSessions, setUserSessions] = useState<Session[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -103,8 +109,6 @@ const App: React.FC = () => {
           // Do not show an error before the user attempts to submit a password.
           setLoginModalState({ isOpen: true, isJoining: true, requirePassword: true, message: 'Access required. This session may be password-protected. Please enter your details to continue.', errorMessage: undefined, callback: () => window.location.reload() });
         }
-      } else if (!user) {
-        setLoginModalState({ isOpen: true, isJoining: false, callback: (newUser) => setCurrentUser(newUser || null) });
       }
       setIsLoading(false);
     };
@@ -151,6 +155,7 @@ const App: React.FC = () => {
         const user = await api.createUser(email, displayName, honeypot);
         api.setLocalUser(user);
         setCurrentUser(user);
+        setShowLanding(false);
         setLoginModalState({ isOpen: false, isJoining: false, callback: () => {} });
         loginModalState.callback?.(user);
     } catch(error) {
@@ -358,8 +363,42 @@ const App: React.FC = () => {
     }
   }, [currentSession]);
   
-  if (isLoading) {
+  const handleLandingStart = () => {
+    if (currentUser) {
+      setShowLanding(false);
+      return;
+    }
+    setLoginModalState({
+      isOpen: true,
+      isJoining: false,
+      message: 'Create your Image Comment profile to launch the reviewer workspace.',
+      callback: (newUser) => {
+        setCurrentUser(newUser || null);
+        setShowLanding(false);
+      },
+    });
+  };
+
+  if (isLoading && !showLanding) {
     return <div className="min-h-screen bg-gray-900" />;
+  }
+
+  if (showLanding) {
+    return (
+      <>
+        <LandingPage onStart={handleLandingStart} />
+        <LoginModal 
+          isOpen={loginModalState.isOpen}
+          isJoiningWithPassword={!!loginModalState.requirePassword}
+          message={loginModalState.message}
+          externalError={loginModalState.errorMessage}
+          defaultDisplayName={currentUser?.displayName}
+          defaultEmail={currentUser?.email}
+          disableIdentityInputs={!!currentUser}
+          onSubmit={handleLogin}
+        />
+      </>
+    );
   }
 
   return (
@@ -367,7 +406,7 @@ const App: React.FC = () => {
       <div className="min-h-screen bg-gray-900 text-gray-200 flex flex-col font-sans">
         <header className="p-4 bg-gray-800/50 backdrop-blur-sm border-b border-gray-700 flex justify-between items-center z-20 shrink-0">
           <div>
-            <a href="/" className="text-2xl font-bold text-cyan-400 hover:text-cyan-300 transition-colors">Design Collaborator</a>
+            <a href="/" className="text-2xl font-bold text-cyan-400 hover:text-cyan-300 transition-colors">Image Comment</a>
             {currentSession && (
               <div className="mt-1 text-sm text-gray-300 flex gap-4">
                 <span>
