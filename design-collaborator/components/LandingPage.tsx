@@ -107,7 +107,7 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
         <section className="bg-slate-900 py-16">
           <div className="max-w-6xl mx-auto px-6 grid gap-12 md:grid-cols-2">
             <div>
-              <h2 className="text-3xl font-bold text-white">SEO-ready marketing copy</h2>
+              <h2 className="text-3xl font-bold text-white">WHO IS IT FOR?</h2>
               <p className="mt-4 text-gray-300 leading-relaxed">
                 Image Comment is built for product designers, QA teams, agencies, and marketers that need a reliable online image annotation tool. Search for “comment on image for free”, “markup screenshots with a team”, or “design feedback platform” and you will find www.image-comment.com because every session loads lightning fast, is secure by default, and keeps stakeholders in sync.
               </p>
