@@ -1,8 +1,17 @@
 User-agent: *
-# Disallow session pages and monitor
+# Protects user privacy and prevents duplicate content
 Disallow: /?sessionId=
 Disallow: /monitor
 Disallow: /uploads/
 
-Sitemap: https://collab.flowops.me/sitemap.xml
+# Explicitly allow AI bots to crawl your landing page (AIO/GEO)
+User-agent: GPTBot
+Allow: /
+Disallow: /?sessionId=
 
+User-agent: Google-Extended
+Allow: /
+Disallow: /?sessionId=
+
+# Update this to your actual production domain
+Sitemap: https://www.image-comment.com/sitemap.xml

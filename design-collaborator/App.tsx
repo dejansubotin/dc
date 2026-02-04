@@ -15,7 +15,8 @@ import EditProfileModal from './components/EditProfileModal';
 import DisableCountdown from './components/DisableCountdown';
 import AddImagesModal from './components/AddImagesModal';
 import SessionHistory from './components/SessionHistory';
-import LandingPage from './components/LandingPage';
+import LandingPage from './components/LandingPage.bup';
+import LegalPage from './components/LegalPage';
 import type { Annotation, SelectionRectangle, User, Session, Comment } from './types';
 import * as api from './services/api';
 
@@ -24,6 +25,10 @@ import * as api from './services/api';
 const API_URL = '';
 
 const App: React.FC = () => {
+  const pathname = typeof window === 'undefined' ? '/' : window.location.pathname;
+  const legalRoute = pathname === '/privacy' ? 'privacy' : pathname === '/terms' ? 'terms' : null;
+  const isLegalRoute = legalRoute !== null;
+
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [showLanding, setShowLanding] = useState(() => {
     if (typeof window === 'undefined') return true;
@@ -65,6 +70,11 @@ const App: React.FC = () => {
 
   // --- Initialization and Socket Effect ---
   useEffect(() => {
+    if (isLegalRoute) {
+      setIsLoading(false);
+      return;
+    }
+
     const initializeApp = async () => {
       const user = api.getLocalUser();
       const params = new URLSearchParams(window.location.search);
@@ -113,7 +123,7 @@ const App: React.FC = () => {
       setIsLoading(false);
     };
     initializeApp();
-  }, []);
+  }, [isLegalRoute]);
 
   useEffect(() => {
     if (!currentSession) return;
@@ -381,6 +391,10 @@ const App: React.FC = () => {
 
   if (isLoading && !showLanding) {
     return <div className="min-h-screen bg-gray-900" />;
+  }
+
+  if (isLegalRoute && legalRoute) {
+    return <LegalPage variant={legalRoute} />;
   }
 
   if (showLanding) {

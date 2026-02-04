@@ -102,9 +102,15 @@ const LandingPage: React.FC<LandingPageProps> = ({ onStart }) => {
         </div>
       </main>
 
-      <footer className="py-12 border-t border-slate-900 text-center text-slate-600 text-xs tracking-widest uppercase">
-        &copy; {new Date().getFullYear()} Image Comment &bull; Professional Visual Annotation
-      </footer>
+      <footer className="py-12 border-t border-slate-900 text-center">
+  <div className="flex justify-center gap-6 mb-4 text-xs font-medium text-slate-500">
+    <a href="/privacy" className="hover:text-white transition">Privacy Policy</a>
+    <a href="/terms" className="hover:text-white transition">Terms of Service</a>
+  </div>
+  <p className="text-slate-600 text-[10px] tracking-widest uppercase">
+    &copy; {new Date().getFullYear()} Image Comment &bull; Professional Visual Annotation
+  </p>
+</footer>
     </div>
   );
 };
