@@ -15,7 +15,7 @@ import EditProfileModal from './components/EditProfileModal';
 import DisableCountdown from './components/DisableCountdown';
 import AddImagesModal from './components/AddImagesModal';
 import SessionHistory from './components/SessionHistory';
-import LandingPage from './components/LandingPage.bup';
+import LandingPage from './components/LandingPage.tsx';
 import LegalPage from './components/LegalPage';
 import type { Annotation, SelectionRectangle, User, Session, Comment } from './types';
 import * as api from './services/api';
